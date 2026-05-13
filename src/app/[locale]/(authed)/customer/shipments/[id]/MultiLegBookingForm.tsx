@@ -30,16 +30,29 @@ type PickupOption = {
   priceUSDCents: number;
 };
 
+type CustomsOption = {
+  id: string;
+  agentName: string;
+  etaDays: number;
+  priceUSDCents: number;
+};
+
 export function MultiLegBookingForm({
   shipmentId,
   locale,
   freight,
   pickup,
+  customs,
+  needsPickup,
+  needsCustoms,
 }: {
   shipmentId: string;
   locale: "en" | "ar";
   freight: FreightOption[];
   pickup: PickupOption[];
+  customs: CustomsOption[];
+  needsPickup: boolean;
+  needsCustoms: boolean;
 }) {
   const t = useTranslations("MultiLeg");
   const tQ = useTranslations("Quotes");
@@ -50,32 +63,64 @@ export function MultiLegBookingForm({
   const [selPickup, setSelPickup] = useState<string | null>(
     pickup[0]?.id ?? null
   );
+  const [selCustoms, setSelCustoms] = useState<string | null>(
+    customs[0]?.id ?? null
+  );
 
   const f = freight.find((x) => x.id === selFreight);
   const p = pickup.find((x) => x.id === selPickup);
-  const total = (f?.priceUSDCents ?? 0) + (p?.priceUSDCents ?? 0);
+  const c = customs.find((x) => x.id === selCustoms);
+  const total =
+    (f?.priceUSDCents ?? 0) +
+    (needsPickup ? p?.priceUSDCents ?? 0 : 0) +
+    (needsCustoms ? c?.priceUSDCents ?? 0 : 0);
 
   const errMsg =
     state.error === "pickupRequired"
       ? t("errPickupRequired")
-      : state.error === "shipmentNotOpen"
-        ? tQ("errShipmentNotFound")
-        : state.error === "quoteNotPending" || state.error === "pickupNotPending"
-          ? t("errQuoteStale")
-          : state.error
-            ? t("errUnknown")
-            : null;
+      : state.error === "customsRequired"
+        ? t("errCustomsRequired")
+        : state.error === "shipmentNotOpen"
+          ? tQ("errShipmentNotFound")
+          : state.error === "quoteNotPending" ||
+              state.error === "pickupNotPending" ||
+              state.error === "customsNotPending"
+            ? t("errQuoteStale")
+            : state.error
+              ? t("errUnknown")
+              : null;
 
-  const canSubmit = !!selFreight && !!selPickup;
+  const canSubmit =
+    !!selFreight &&
+    (!needsPickup || !!selPickup) &&
+    (!needsCustoms || !!selCustoms);
 
   return (
     <form action={action} className="flex flex-col gap-6">
       <input type="hidden" name="shipmentId" value={shipmentId} />
       <input type="hidden" name="locale" value={locale} />
       <input type="hidden" name="quoteId" value={selFreight ?? ""} />
-      <input type="hidden" name="pickupQuoteId" value={selPickup ?? ""} />
+      <input
+        type="hidden"
+        name="pickupQuoteId"
+        value={needsPickup ? selPickup ?? "" : ""}
+      />
+      <input
+        type="hidden"
+        name="customsQuoteId"
+        value={needsCustoms ? selCustoms ?? "" : ""}
+      />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div
+        className={cn(
+          "grid gap-6",
+          needsPickup && needsCustoms
+            ? "lg:grid-cols-3"
+            : needsPickup || needsCustoms
+              ? "lg:grid-cols-2"
+              : ""
+        )}
+      >
         <Column
           title={t("freightTitle")}
           subtitle={t("freightSubtitle")}
@@ -118,42 +163,84 @@ export function MultiLegBookingForm({
           ))}
         </Column>
 
-        <Column
-          title={t("pickupTitle")}
-          subtitle={t("pickupSubtitle")}
-          empty={
-            pickup.length === 0 ? (
-              <p className="rounded-md border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500">
-                {t("pickupWaiting")}
-              </p>
-            ) : null
-          }
-        >
-          {pickup.map((q) => (
-            <RadioCard
-              key={q.id}
-              checked={selPickup === q.id}
-              onClick={() => setSelPickup(q.id)}
-            >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="font-medium text-zinc-900">{q.coworkerName}</span>
-                <span className="text-base font-semibold text-zinc-900">
-                  {formatUSD(q.priceUSDCents)}
-                </span>
-              </div>
-              <div className="mt-1 text-xs text-zinc-500">
-                {t("kmRoute", { km: q.distanceKm })}
-                {q.vehicleNote ? ` · ${q.vehicleNote}` : ""}
-              </div>
-            </RadioCard>
-          ))}
-        </Column>
+        {needsPickup && (
+          <Column
+            title={t("pickupTitle")}
+            subtitle={t("pickupSubtitle")}
+            empty={
+              pickup.length === 0 ? (
+                <p className="rounded-md border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500">
+                  {t("pickupWaiting")}
+                </p>
+              ) : null
+            }
+          >
+            {pickup.map((q) => (
+              <RadioCard
+                key={q.id}
+                checked={selPickup === q.id}
+                onClick={() => setSelPickup(q.id)}
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-medium text-zinc-900">
+                    {q.coworkerName}
+                  </span>
+                  <span className="text-base font-semibold text-zinc-900">
+                    {formatUSD(q.priceUSDCents)}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-zinc-500">
+                  {t("kmRoute", { km: q.distanceKm })}
+                  {q.vehicleNote ? ` · ${q.vehicleNote}` : ""}
+                </div>
+              </RadioCard>
+            ))}
+          </Column>
+        )}
+
+        {needsCustoms && (
+          <Column
+            title={t("customsTitle")}
+            subtitle={t("customsSubtitle")}
+            empty={
+              customs.length === 0 ? (
+                <p className="rounded-md border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500">
+                  {t("customsWaiting")}
+                </p>
+              ) : null
+            }
+          >
+            {customs.map((q) => (
+              <RadioCard
+                key={q.id}
+                checked={selCustoms === q.id}
+                onClick={() => setSelCustoms(q.id)}
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-medium text-zinc-900">{q.agentName}</span>
+                  <span className="text-base font-semibold text-zinc-900">
+                    {formatUSD(q.priceUSDCents)}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-zinc-500">
+                  {t("etaDaysLine", { days: q.etaDays })}
+                </div>
+              </RadioCard>
+            ))}
+          </Column>
+        )}
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm">
         <div className="flex items-center justify-between">
           <div className="text-zinc-700">
-            {f && p ? t("totalLine", { freight: formatUSD(f.priceUSDCents), pickup: formatUSD(p.priceUSDCents) }) : t("selectBoth")}
+            {!canSubmit
+              ? t("selectAll")
+              : t("totalLineParts", {
+                  freight: formatUSD(f!.priceUSDCents),
+                  pickup: needsPickup ? formatUSD(p!.priceUSDCents) : "—",
+                  customs: needsCustoms ? formatUSD(c!.priceUSDCents) : "—",
+                })}
           </div>
           <div className="text-xl font-semibold text-zinc-900">
             {formatUSD(total)}

@@ -29,18 +29,25 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts          Account[]
-  sessions          Session[]
-  forwarderProfile  ForwarderProfile?
-  coworkerProfile   CoworkerProfile?
-  shipments         Shipment[]              @relation("CustomerShipments")
-  quotes            Quote[]                 @relation("ForwarderQuotes")
-  coworkerQuotes    CoworkerQuote[]         @relation("CoworkerQuotes")
-  bookingsAsCust    Booking[]               @relation("CustomerBookings")
-  bookingsAsFwd     Booking[]               @relation("ForwarderBookings")
-  bookingsAsCowo    Booking[]               @relation("CoworkerBookings")
-  trackingEvents    TrackingEvent[]
-  uploadedDocuments Document[]
+  accounts            Account[]
+  sessions            Session[]
+  forwarderProfile    ForwarderProfile?
+  coworkerProfile     CoworkerProfile?
+  customsAgentProfile CustomsAgentProfile?
+  shipments           Shipment[]            @relation("CustomerShipments")
+  quotes              Quote[]               @relation("ForwarderQuotes")
+  coworkerQuotes      CoworkerQuote[]       @relation("CoworkerQuotes")
+  customsQuotes       CustomsQuote[]        @relation("CustomsQuotes")
+  bookingsAsCust      Booking[]             @relation("CustomerBookings")
+  bookingsAsFwd       Booking[]             @relation("ForwarderBookings")
+  bookingsAsCowo      Booking[]             @relation("CoworkerBookings")
+  bookingsAsCustoms   Booking[]             @relation("CustomsBookings")
+  reviewsAuthored     Review[]              @relation("ReviewsAuthored")
+  reviewsReceived     Review[]              @relation("ReviewsReceived")
+  messagesAuthored    Message[]             @relation("MessagesAuthored")
+  conversationReads   ConversationRead[]
+  trackingEvents      TrackingEvent[]
+  uploadedDocuments   Document[]
 }
 
 model Account {
@@ -96,6 +103,26 @@ model ForwarderProfile {
 
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   lanes Lane[]
+}
+
+model CustomsAgentProfile {
+  userId             String   @id                       @db.VarChar(30)
+  displayName        String                              @db.VarChar(120)  // firm or individual
+  countryCode        String                              @db.VarChar(2)   // operating country (matches destinationPort.country)
+  operationCities    String?                             @db.Text          // optional comma-separated list of city names
+  licenseNumber      String?                             @db.VarChar(80)   // broker license, if any
+  baseFeeUSDCents    Int      @default(15000)                              // $150 default base
+  docSetFeeUSDCents  Int      @default(5000)                               // $50 per document set
+  stripeAccountId    String?  @unique                   @db.VarChar(80)
+  onboardingComplete Boolean  @default(false)
+  ratingAvg          Float    @default(0)
+  ratingCount        Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([countryCode])
 }
 
 model CoworkerProfile {
@@ -166,6 +193,8 @@ model Shipment {
   readyDate               DateTime
   incoterm                Incoterm        @default(FOB)
   status                  ShipmentStatus  @default(RFQ_OPEN)
+  // Customer wants customs clearance handled by an agent at destination.
+  needsCustomsClearance   Boolean         @default(false)
   // ExWorks-only: pickup factory + contact (nullable, populated when incoterm = EXW)
   factoryAddressLine      String?                               @db.VarChar(300)
   factoryCity             String?                               @db.VarChar(120)
@@ -181,11 +210,31 @@ model Shipment {
   destinationPort Port      @relation("ShipDestination", fields: [destinationPortUnlocode], references: [unlocode])
   quotes          Quote[]
   coworkerQuotes  CoworkerQuote[]
+  customsQuotes   CustomsQuote[]
   booking         Booking?
 
   @@index([status])
   @@index([originPortUnlocode, destinationPortUnlocode])
   @@index([customerId])
+}
+
+model CustomsQuote {
+  id              String      @id @default(cuid()) @db.VarChar(30)
+  shipmentId      String                            @db.VarChar(30)
+  customsAgentId  String                            @db.VarChar(30)
+  priceUSDCents   Int
+  etaDays         Int                                                  // days to clear customs after vessel arrival
+  notes           String?                           @db.Text
+  validUntil      DateTime
+  status          QuoteStatus @default(PENDING)
+  createdAt       DateTime    @default(now())
+
+  shipment     Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  customsAgent User     @relation("CustomsQuotes", fields: [customsAgentId], references: [id])
+  booking      Booking?
+
+  @@unique([shipmentId, customsAgentId])
+  @@index([status])
 }
 
 model CoworkerQuote {
@@ -238,6 +287,10 @@ model Booking {
   pickupQuoteId         String?  @unique                @db.VarChar(30)
   coworkerId            String?                         @db.VarChar(30)
   pickupAmountUSDCents  Int      @default(0)
+  // Optional customs leg. Null when the customer didn't request customs.
+  customsQuoteId        String?  @unique                @db.VarChar(30)
+  customsAgentId        String?                         @db.VarChar(30)
+  customsAmountUSDCents Int      @default(0)
   bookingNumber         String   @unique                @db.VarChar(40)
   stripePaymentIntentId String?  @unique                @db.VarChar(80)
   stripeCheckoutId      String?  @unique                @db.VarChar(80)
@@ -249,11 +302,73 @@ model Booking {
   shipment       Shipment        @relation(fields: [shipmentId], references: [id])
   quote          Quote           @relation(fields: [quoteId], references: [id])
   pickupQuote    CoworkerQuote?  @relation(fields: [pickupQuoteId], references: [id])
+  customsQuote   CustomsQuote?   @relation(fields: [customsQuoteId], references: [id])
   customer       User            @relation("CustomerBookings", fields: [customerId], references: [id])
   forwarder      User            @relation("ForwarderBookings", fields: [forwarderId], references: [id])
   coworker       User?           @relation("CoworkerBookings", fields: [coworkerId], references: [id])
+  customsAgent   User?           @relation("CustomsBookings", fields: [customsAgentId], references: [id])
   trackingEvents TrackingEvent[]
   documents      Document[]
+  reviews        Review[]
+  conversation   Conversation?
+}
+
+// One conversation per booking. All booking parties (customer + forwarder
+// + coworker? + customs agent?) are implicit participants — we don't store
+// a join table; we just compare senders to the booking's user IDs.
+model Conversation {
+  id            String    @id @default(cuid()) @db.VarChar(30)
+  bookingId     String    @unique                @db.VarChar(30)
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  booking  Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  messages Message[]
+  reads    ConversationRead[]
+}
+
+model Message {
+  id             String   @id @default(cuid()) @db.VarChar(30)
+  conversationId String                          @db.VarChar(30)
+  senderId       String                          @db.VarChar(30)
+  body           String                          @db.Text
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("MessagesAuthored", fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+}
+
+// Per-user "last read at" pointer. Unread count = messages newer than this.
+model ConversationRead {
+  conversationId String   @db.VarChar(30)
+  userId         String   @db.VarChar(30)
+  lastReadAt     DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+}
+
+model Review {
+  id          String   @id @default(cuid()) @db.VarChar(30)
+  bookingId   String                          @db.VarChar(30)
+  raterUserId String                          @db.VarChar(30)
+  ratedUserId String                          @db.VarChar(30)
+  ratedRole   UserRole
+  score       Int                              // 1..5
+  comment     String?                          @db.Text
+  createdAt   DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  rater   User    @relation("ReviewsAuthored", fields: [raterUserId], references: [id])
+  rated   User    @relation("ReviewsReceived", fields: [ratedUserId], references: [id])
+
+  // One review per (booking, rater→rated) pair — enforces "no double-reviewing".
+  @@unique([bookingId, raterUserId, ratedUserId])
+  @@index([ratedUserId])
 }
 
 model TrackingEvent {
@@ -303,6 +418,7 @@ enum UserRole {
   CUSTOMER
   FORWARDER
   COWORKER
+  CUSTOMS_AGENT
   ADMIN
 }
 

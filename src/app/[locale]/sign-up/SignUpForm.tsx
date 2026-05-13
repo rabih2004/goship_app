@@ -13,7 +13,7 @@ import { signUpAction, type SignUpState } from "./actions";
 
 const initialState: SignUpState = { ok: false };
 
-type Role = "CUSTOMER" | "FORWARDER" | "COWORKER";
+type Role = "CUSTOMER" | "FORWARDER" | "COWORKER" | "CUSTOMS_AGENT";
 
 export function SignUpForm({
   locale,
@@ -36,7 +36,7 @@ export function SignUpForm({
         <legend className="mb-2 text-sm font-medium text-zinc-800">
           {t("role")}
         </legend>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <RoleCard
             value="CUSTOMER"
             label={t("roleCustomer")}
@@ -54,6 +54,12 @@ export function SignUpForm({
             label={t("roleCoworker")}
             checked={role === "COWORKER"}
             onChange={() => setRole("COWORKER")}
+          />
+          <RoleCard
+            value="CUSTOMS_AGENT"
+            label={t("roleCustomsAgent")}
+            checked={role === "CUSTOMS_AGENT"}
+            onChange={() => setRole("CUSTOMS_AGENT")}
           />
         </div>
       </fieldset>
@@ -155,6 +161,46 @@ export function SignUpForm({
               invalid={!!fe.cityArea}
             />
             <FieldError>{fe.cityArea}</FieldError>
+          </div>
+        </>
+      )}
+
+      {role === "CUSTOMS_AGENT" && (
+        <>
+          <div>
+            <Label htmlFor="displayName">{t("displayName")}</Label>
+            <Input
+              id="displayName"
+              name="displayName"
+              required
+              placeholder={t("customsFirmPlaceholder")}
+              invalid={!!fe.displayName}
+            />
+            <FieldError>{fe.displayName}</FieldError>
+          </div>
+          <div>
+            <Label htmlFor="countryCode">{t("operatingCountry")}</Label>
+            <Input
+              id="countryCode"
+              name="countryCode"
+              required
+              maxLength={2}
+              placeholder="DE"
+              className="uppercase"
+              invalid={!!fe.countryCode}
+            />
+            <FieldError>{fe.countryCode}</FieldError>
+          </div>
+          <div>
+            <Label htmlFor="licenseNumber">{t("licenseNumber")}</Label>
+            <Input
+              id="licenseNumber"
+              name="licenseNumber"
+              maxLength={80}
+              placeholder={t("licenseNumberPlaceholder")}
+              invalid={!!fe.licenseNumber}
+            />
+            <FieldError>{fe.licenseNumber}</FieldError>
           </div>
         </>
       )}

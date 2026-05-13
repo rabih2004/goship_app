@@ -25,6 +25,7 @@ export default async function AdminHome({
     forwarders,
     onboardedForwarders,
     coworkers,
+    customsAgents,
     customers,
     shipments,
     openShipments,
@@ -36,6 +37,7 @@ export default async function AdminHome({
     db.user.count({ where: { role: "FORWARDER" } }),
     db.forwarderProfile.count({ where: { onboardingComplete: true } }),
     db.user.count({ where: { role: "COWORKER" } }),
+    db.user.count({ where: { role: "CUSTOMS_AGENT" } }),
     db.user.count({ where: { role: "CUSTOMER" } }),
     db.shipment.count(),
     db.shipment.count({ where: { status: "RFQ_OPEN" } }),
@@ -56,7 +58,7 @@ export default async function AdminHome({
           href="/admin/users"
           big={String(users)}
           label={t("usersCard")}
-          sub={`${customers} ${t("customers")} · ${forwarders} ${t("forwarders")} · ${coworkers} ${t("coworkers")}${suspended ? ` · ${suspended} ${t("suspended")}` : ""}`}
+          sub={`${customers} ${t("customers")} · ${forwarders} ${t("forwarders")} · ${coworkers} ${t("coworkers")} · ${customsAgents} ${t("customsAgents")}${suspended ? ` · ${suspended} ${t("suspended")}` : ""}`}
         />
         <NavCard
           href="/admin/shipments"

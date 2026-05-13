@@ -1,11 +1,12 @@
 /**
- * Dev-only seeder: creates 4 test accounts you can log in with locally.
+ * Dev-only seeder: creates 5 test accounts you can log in with locally.
  * Run via: npm run seed:dev
  *
  *   admin@test.local     / Test1234!  (ADMIN)
  *   customer@test.local  / Test1234!  (CUSTOMER)
  *   forwarder@test.local / Test1234!  (FORWARDER, with profile + 3 lanes)
  *   coworker@test.local  / Test1234!  (COWORKER, with profile in Beirut)
+ *   customs@test.local   / Test1234!  (CUSTOMS_AGENT, operating in Germany)
  *
  * Idempotent — re-running upserts.
  */
@@ -261,11 +262,37 @@ async function main() {
     },
   });
 
-  console.log("\nSeeded 4 dev users (password: Test1234!):");
+  // Customs agent — operating in Germany (matches DEHAM destination port).
+  const customs = await db.user.upsert({
+    where: { email: "customs@test.local" },
+    update: { passwordHash: password, role: "CUSTOMS_AGENT" },
+    create: {
+      email: "customs@test.local",
+      name: "Customs Agent",
+      role: "CUSTOMS_AGENT",
+      passwordHash: password,
+    },
+  });
+  await db.customsAgentProfile.upsert({
+    where: { userId: customs.id },
+    update: {},
+    create: {
+      userId: customs.id,
+      displayName: "Hamburg Customs Brokers GmbH",
+      countryCode: "DE",
+      licenseNumber: "DE-CB-2024-018734",
+      baseFeeUSDCents: 15000,
+      docSetFeeUSDCents: 5000,
+      onboardingComplete: true,
+    },
+  });
+
+  console.log("\nSeeded 5 dev users (password: Test1234!):");
   console.log("  admin@test.local      → ADMIN");
   console.log("  customer@test.local   → CUSTOMER");
   console.log("  forwarder@test.local  → FORWARDER + profile + 3 lanes");
   console.log("  coworker@test.local   → COWORKER + Beirut profile");
+  console.log("  customs@test.local    → CUSTOMS_AGENT + Hamburg profile");
 }
 
 main()

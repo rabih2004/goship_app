@@ -10,7 +10,7 @@ import { formatUSD } from "@/lib/money";
 import { ReviewPanel } from "@/components/ReviewPanel";
 import { ChatPanel } from "@/components/ChatPanel";
 
-export default async function CoworkerBookingDetailPage({
+export default async function CustomsBookingDetailPage({
   params,
 }: {
   params: Promise<{ locale: string; id: string }>;
@@ -19,7 +19,7 @@ export default async function CoworkerBookingDetailPage({
   if (!hasLocale(routing.locales, rawLocale)) notFound();
   const locale = rawLocale as AppLocale;
   setRequestLocale(locale);
-  const user = await requireRole("COWORKER", locale);
+  const user = await requireRole("CUSTOMS_AGENT", locale);
   const tB = await getTranslations({ locale, namespace: "Booking" });
 
   const booking = await db.booking.findUnique({
@@ -27,11 +27,11 @@ export default async function CoworkerBookingDetailPage({
     include: {
       shipment: {
         select: {
-          factoryAddressLine: true,
-          factoryCity: true,
-          pickupContactName: true,
-          pickupContactPhone: true,
+          cargoDescription: true,
+          weightKg: true,
+          incoterm: true,
           originPort: { select: { name: true, unlocode: true } },
+          destinationPort: { select: { name: true, unlocode: true } },
         },
       },
       customer: { select: { email: true, name: true } },
@@ -56,9 +56,7 @@ export default async function CoworkerBookingDetailPage({
           customsAgentProfile: { select: { displayName: true } },
         },
       },
-      pickupQuote: {
-        select: { distanceKm: true, vehicleNote: true, notes: true, pickupTime: true },
-      },
+      customsQuote: { select: { etaDays: true, notes: true } },
       trackingEvents: {
         orderBy: { occurredAt: "desc" },
         take: 1,
@@ -78,13 +76,13 @@ export default async function CoworkerBookingDetailPage({
     },
   });
 
-  if (!booking || booking.coworkerId !== user.id) notFound();
+  if (!booking || booking.customsAgentId !== user.id) notFound();
 
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-12">
       <div className="mb-6 flex items-center justify-between">
         <Link
-          href="/coworker/bookings"
+          href="/customs/bookings"
           className="text-sm text-[var(--brand)] underline"
         >
           <span className="dir-back" /> {tB("backToList")}
@@ -100,46 +98,37 @@ export default async function CoworkerBookingDetailPage({
         </div>
 
         <h1 className="mt-4 text-lg font-medium text-zinc-900">
-          {booking.shipment.factoryCity ?? booking.shipment.factoryAddressLine}
-          <span className="px-2 text-zinc-400 dir-arrow" />
-          {booking.shipment.originPort.name} ({booking.shipment.originPort.unlocode})
+          {tB("clearanceAt")} {booking.shipment.destinationPort.name} ({booking.shipment.destinationPort.unlocode})
         </h1>
 
         <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-3">
           <Field label={tB("amountPaid")}>
-            {formatUSD(booking.pickupAmountUSDCents)}
+            {formatUSD(booking.customsAmountUSDCents)}
           </Field>
           <Field label={tB("yourPayout")}>
-            {formatUSD(booking.pickupAmountUSDCents)}
+            {formatUSD(booking.customsAmountUSDCents)}
           </Field>
           <Field label={tB("customer")}>
             {booking.customer.name ?? booking.customer.email}
           </Field>
-          {booking.pickupQuote?.distanceKm && (
-            <Field label="Distance">
-              {booking.pickupQuote.distanceKm} km
-            </Field>
-          )}
-          {booking.pickupQuote?.vehicleNote && (
-            <Field label="Vehicle">{booking.pickupQuote.vehicleNote}</Field>
-          )}
-          {booking.pickupQuote?.pickupTime && (
-            <Field label="Pickup time">
-              {booking.pickupQuote.pickupTime
-                .toISOString()
-                .slice(0, 16)
-                .replace("T", " ")}
+          <Field label="Origin port">
+            {booking.shipment.originPort.name} ({booking.shipment.originPort.unlocode})
+          </Field>
+          <Field label="INCOTERM">{booking.shipment.incoterm}</Field>
+          {booking.customsQuote?.etaDays && (
+            <Field label="ETA (days after arrival)">
+              {booking.customsQuote.etaDays}
             </Field>
           )}
         </dl>
 
         <div className="mt-6 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
           <div className="text-xs font-medium uppercase tracking-wide text-sky-700">
-            {tB("pickupAt")}
+            Cargo
           </div>
-          <div className="mt-0.5">{booking.shipment.factoryAddressLine}</div>
+          <div className="mt-0.5">{booking.shipment.cargoDescription}</div>
           <div className="mt-0.5 text-xs text-sky-700">
-            {booking.shipment.pickupContactName} · {booking.shipment.pickupContactPhone}
+            {booking.shipment.weightKg} kg
           </div>
         </div>
       </div>
@@ -154,7 +143,7 @@ export default async function CoworkerBookingDetailPage({
         bookingId={booking.id}
         currentUserId={user.id}
         delivered={booking.trackingEvents[0]?.stage === "DELIVERED"}
-        parties={buildPartiesCw(booking)}
+        parties={buildPartiesCa(booking)}
         reviews={booking.reviews}
         locale={locale}
       />
@@ -162,7 +151,7 @@ export default async function CoworkerBookingDetailPage({
   );
 }
 
-function buildPartiesCw(b: {
+function buildPartiesCa(b: {
   customerId: string;
   customer: { email: string; name: string | null };
   forwarderId: string;

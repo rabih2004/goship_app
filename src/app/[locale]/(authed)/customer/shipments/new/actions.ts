@@ -13,6 +13,10 @@ const baseInput = z.object({
   cargoDescription: z.string().trim().min(3).max(2000),
   weightKg: z.coerce.number().int().min(1).max(40000),
   readyDate: z.coerce.date(),
+  needsCustomsClearance: z
+    .union([z.literal("on"), z.literal("true"), z.literal("")])
+    .transform((v) => v === "on" || v === "true")
+    .optional(),
   locale: z.enum(["en", "ar"]).default("en"),
 });
 
@@ -83,6 +87,7 @@ export async function createShipmentAction(
       readyDate: data.readyDate,
       incoterm: data.incoterm,
       status: "RFQ_OPEN",
+      needsCustomsClearance: data.needsCustomsClearance ?? false,
       ...(data.incoterm === "EXW"
         ? {
             factoryAddressLine: data.factoryAddressLine,

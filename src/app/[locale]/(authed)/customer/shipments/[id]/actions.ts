@@ -16,6 +16,8 @@ const acceptInput = z.object({
   quoteId: z.string().min(1),
   // Optional pickup leg — required when the shipment is EXW.
   pickupQuoteId: z.string().optional(),
+  // Optional customs leg — required when shipment.needsCustomsClearance.
+  customsQuoteId: z.string().optional(),
   locale: z.enum(["en", "ar"]).default("en"),
 });
 
@@ -31,6 +33,9 @@ export type AcceptQuoteState = {
     | "pickupRequired"
     | "pickupNotFound"
     | "pickupNotPending"
+    | "customsRequired"
+    | "customsNotFound"
+    | "customsNotPending"
     | "providerError"
     | "unknown";
 };
@@ -44,17 +49,18 @@ export async function acceptQuoteAction(
     return { ok: false, error: "auth" };
   }
 
-  // Coerce empty string to undefined so the optional pickupQuoteId field
-  // doesn't fail z.string().min(1) when omitted via hidden input.
+  // Coerce empty strings to undefined so the optional ID fields don't fail
+  // z.string().min(1) when omitted via hidden input.
   const raw = Object.fromEntries(formData.entries());
   const cleaned: Record<string, FormDataEntryValue> = {};
   for (const [k, v] of Object.entries(raw)) {
-    if (v === "" && k === "pickupQuoteId") continue;
+    if (v === "" && (k === "pickupQuoteId" || k === "customsQuoteId")) continue;
     cleaned[k] = v;
   }
   const parsed = acceptInput.safeParse(cleaned);
   if (!parsed.success) return { ok: false, error: "validation" };
-  const { shipmentId, quoteId, pickupQuoteId, locale } = parsed.data;
+  const { shipmentId, quoteId, pickupQuoteId, customsQuoteId, locale } =
+    parsed.data;
 
   const shipment = await db.shipment.findUnique({
     where: { id: shipmentId },
@@ -63,6 +69,7 @@ export async function acceptQuoteAction(
       customerId: true,
       status: true,
       incoterm: true,
+      needsCustomsClearance: true,
     },
   });
   if (!shipment || shipment.customerId !== session.user.id) {
@@ -75,6 +82,10 @@ export async function acceptQuoteAction(
   // EXW bookings MUST include a pickup quote — that's the whole point of the leg.
   if (shipment.incoterm === "EXW" && !pickupQuoteId) {
     return { ok: false, error: "pickupRequired" };
+  }
+  // If customer flagged customs, they must pick a customs quote at booking time.
+  if (shipment.needsCustomsClearance && !customsQuoteId) {
+    return { ok: false, error: "customsRequired" };
   }
 
   const quote = await db.quote.findUnique({
@@ -124,8 +135,39 @@ export async function acceptQuoteAction(
     };
   }
 
+  let customs: {
+    id: string;
+    customsAgentId: string;
+    priceUSDCents: number;
+  } | null = null;
+
+  if (customsQuoteId) {
+    const c = await db.customsQuote.findUnique({
+      where: { id: customsQuoteId },
+      select: {
+        id: true,
+        shipmentId: true,
+        customsAgentId: true,
+        priceUSDCents: true,
+        status: true,
+      },
+    });
+    if (!c || c.shipmentId !== shipmentId) {
+      return { ok: false, error: "customsNotFound" };
+    }
+    if (c.status !== "PENDING") {
+      return { ok: false, error: "customsNotPending" };
+    }
+    customs = {
+      id: c.id,
+      customsAgentId: c.customsAgentId,
+      priceUSDCents: c.priceUSDCents,
+    };
+  }
+
   const pickupCents = pickup?.priceUSDCents ?? 0;
-  const totalUSDCents = quote.priceUSDCents + pickupCents;
+  const customsCents = customs?.priceUSDCents ?? 0;
+  const totalUSDCents = quote.priceUSDCents + pickupCents + customsCents;
   const commissionPct = Number(process.env.PLATFORM_COMMISSION_PERCENT ?? 7);
   const platformFeeUSDCents = Math.round(totalUSDCents * (commissionPct / 100));
 
@@ -145,6 +187,9 @@ export async function acceptQuoteAction(
               pickupQuoteId: pickup?.id,
               coworkerId: pickup?.coworkerId,
               pickupAmountUSDCents: pickupCents,
+              customsQuoteId: customs?.id,
+              customsAgentId: customs?.customsAgentId,
+              customsAmountUSDCents: customsCents,
               bookingNumber,
               totalUSDCents,
               platformFeeUSDCents,
@@ -173,18 +218,32 @@ export async function acceptQuoteAction(
             });
           }
 
+          if (customs) {
+            await tx.customsQuote.update({
+              where: { id: customs.id },
+              data: { status: "ACCEPTED" },
+            });
+            await tx.customsQuote.updateMany({
+              where: { shipmentId, status: "PENDING", id: { not: customs.id } },
+              data: { status: "REJECTED" },
+            });
+          }
+
           await tx.shipment.update({
             where: { id: shipmentId },
             data: { status: "BOOKED" },
           });
 
+          const legNotes: string[] = [];
+          if (pickup) legNotes.push("pickup");
+          if (customs) legNotes.push("customs");
           await tx.trackingEvent.create({
             data: {
               bookingId: created.id,
               stage: "BOOKED",
               createdById: session.user.id,
-              notes: pickup
-                ? "Mock booking — sea freight + pickup leg accepted."
+              notes: legNotes.length
+                ? `Mock booking — sea freight + ${legNotes.join(" + ")} leg accepted.`
                 : "Mock booking created (no real charge).",
             },
           });
@@ -254,11 +313,33 @@ export async function acceptQuoteAction(
       }
     }
 
+    // Notify customs agent (if customs leg).
+    if (customs) {
+      const ca = await db.user.findUnique({
+        where: { id: customs.customsAgentId },
+        select: { email: true },
+      });
+      if (ca?.email) {
+        void sendEmail({
+          to: ca.email,
+          subject: `Customs clearance won: ${booking.bookingNumber}`,
+          text: tplBookingConfirmedToForwarder({
+            bookingNumber: booking.bookingNumber,
+            customerName: customer?.name ?? customer?.email ?? "A customer",
+            totalUSD: formatUSD(customs.priceUSDCents),
+            payoutUSD: formatUSD(customs.priceUSDCents),
+            bookingUrl: `${process.env.AUTH_URL ?? "http://localhost:3000"}/${locale}/customs/bookings/${booking.id}`,
+          }),
+        }).catch((err) => console.error("customs booking email failed:", err));
+      }
+    }
+
     revalidatePath(`/${locale}/customer/shipments/${shipmentId}`);
     revalidatePath(`/${locale}/customer/shipments`);
     revalidatePath(`/${locale}/customer/bookings`);
     revalidatePath(`/${locale}/forwarder`);
     revalidatePath(`/${locale}/coworker`);
+    revalidatePath(`/${locale}/customs`);
     redirect(`/${locale}/customer/bookings/${booking.id}?just_booked=1`);
   }
 

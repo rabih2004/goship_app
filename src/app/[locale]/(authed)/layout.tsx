@@ -2,6 +2,7 @@ import { setRequestLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { redirect, Link } from "@/i18n/navigation";
 import { SignOutButton } from "@/components/SignOutButton";
+import { UnreadBadge } from "@/components/UnreadBadge";
 import { hasLocale } from "next-intl";
 import { notFound } from "next/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
@@ -31,6 +32,7 @@ export default async function AuthedLayout({
             {tBrand("name")}
           </Link>
           <div className="flex items-center gap-3 text-sm">
+            <UnreadBadge userId={session!.user.id} />
             <span className="hidden text-zinc-600 sm:inline">
               {session!.user.email}
             </span>

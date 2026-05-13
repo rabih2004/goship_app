@@ -199,6 +199,22 @@ export function NewShipmentForm({ locale }: { locale: "en" | "ar" }) {
         <FieldError>{fe.readyDate}</FieldError>
       </div>
 
+      <label className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-white p-3 text-sm">
+        <input
+          type="checkbox"
+          name="needsCustomsClearance"
+          className="mt-1 h-4 w-4 rounded border-zinc-300"
+        />
+        <span>
+          <span className="font-medium text-zinc-900">
+            {t("needsCustomsClearance")}
+          </span>
+          <span className="block text-xs text-zinc-500">
+            {t("needsCustomsClearanceHint")}
+          </span>
+        </span>
+      </label>
+
       {errMessage && <FormError>{errMessage}</FormError>}
 
       <Button type="submit" loading={pending} className="w-full sm:w-auto">

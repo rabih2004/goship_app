@@ -70,6 +70,15 @@ export async function signUpAction(
           cityArea: data.cityArea,
         },
       });
+    } else if (data.role === "CUSTOMS_AGENT") {
+      await tx.customsAgentProfile.create({
+        data: {
+          userId: user.id,
+          displayName: data.displayName,
+          countryCode: data.countryCode,
+          licenseNumber: data.licenseNumber || null,
+        },
+      });
     }
   });
 

@@ -38,10 +38,18 @@ export const coworkerSignUpInput = baseSignUpInput.extend({
   cityArea: z.string().trim().min(1).max(120),
 });
 
+export const customsAgentSignUpInput = baseSignUpInput.extend({
+  role: z.literal("CUSTOMS_AGENT"),
+  displayName: z.string().trim().min(1).max(120),
+  countryCode: countryCodeSchema,
+  licenseNumber: z.string().trim().max(80).optional(),
+});
+
 export const signUpInput = z.discriminatedUnion("role", [
   customerSignUpInput,
   forwarderSignUpInput,
   coworkerSignUpInput,
+  customsAgentSignUpInput,
 ]);
 
 export type SignUpInput = z.infer<typeof signUpInput>;

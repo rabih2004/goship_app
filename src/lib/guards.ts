@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "@/i18n/navigation";
 import type { AppLocale } from "@/i18n/routing";
 
-type Role = "CUSTOMER" | "FORWARDER" | "COWORKER" | "ADMIN";
+type Role = "CUSTOMER" | "FORWARDER" | "COWORKER" | "CUSTOMS_AGENT" | "ADMIN";
 
 export async function requireRole(
   allowed: Role | Role[],

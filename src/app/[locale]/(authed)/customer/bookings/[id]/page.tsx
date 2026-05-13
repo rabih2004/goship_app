@@ -8,6 +8,8 @@ import { Link } from "@/i18n/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { formatUSD } from "@/lib/money";
 import { isMock } from "@/lib/payments";
+import { ReviewPanel } from "@/components/ReviewPanel";
+import { ChatPanel } from "@/components/ChatPanel";
 
 const STAGES = ["BOOKED", "LOADED", "DEPARTED", "ARRIVED", "CLEARED", "DELIVERED"] as const;
 type Stage = (typeof STAGES)[number];
@@ -48,9 +50,25 @@ export default async function CustomerBookingDetailPage({
       forwarder: {
         select: {
           email: true,
+          name: true,
           forwarderProfile: { select: { companyName: true, countryCode: true } },
         },
       },
+      coworker: {
+        select: {
+          email: true,
+          name: true,
+          coworkerProfile: { select: { displayName: true } },
+        },
+      },
+      customsAgent: {
+        select: {
+          email: true,
+          name: true,
+          customsAgentProfile: { select: { displayName: true } },
+        },
+      },
+      customer: { select: { email: true, name: true } },
       quote: {
         select: { transitDays: true, carrierName: true },
       },
@@ -66,6 +84,17 @@ export default async function CustomerBookingDetailPage({
           filename: true,
           sizeBytes: true,
           uploadedAt: true,
+        },
+      },
+      reviews: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          raterUserId: true,
+          ratedUserId: true,
+          score: true,
+          comment: true,
+          createdAt: true,
         },
       },
     },
@@ -228,8 +257,87 @@ export default async function CustomerBookingDetailPage({
           </Field>
         </dl>
       </div>
+
+      <ChatPanel
+        bookingId={booking.id}
+        currentUserId={user.id}
+        locale={locale}
+      />
+
+      <ReviewPanel
+        bookingId={booking.id}
+        currentUserId={user.id}
+        delivered={currentStage === "DELIVERED"}
+        parties={buildParties(booking)}
+        reviews={booking.reviews}
+        locale={locale}
+      />
     </div>
   );
+}
+
+function buildParties(b: {
+  customerId: string;
+  customer: { email: string; name: string | null };
+  forwarderId: string;
+  forwarder: {
+    email: string;
+    name: string | null;
+    forwarderProfile: { companyName: string } | null;
+  };
+  coworkerId: string | null;
+  coworker: {
+    email: string;
+    name: string | null;
+    coworkerProfile: { displayName: string } | null;
+  } | null;
+  customsAgentId: string | null;
+  customsAgent: {
+    email: string;
+    name: string | null;
+    customsAgentProfile: { displayName: string } | null;
+  } | null;
+}) {
+  const out: Array<{
+    userId: string;
+    role: "CUSTOMER" | "FORWARDER" | "COWORKER" | "CUSTOMS_AGENT";
+    name: string;
+  }> = [
+    {
+      userId: b.customerId,
+      role: "CUSTOMER",
+      name: b.customer.name ?? b.customer.email,
+    },
+    {
+      userId: b.forwarderId,
+      role: "FORWARDER",
+      name:
+        b.forwarder.forwarderProfile?.companyName ??
+        b.forwarder.name ??
+        b.forwarder.email,
+    },
+  ];
+  if (b.coworkerId && b.coworker) {
+    out.push({
+      userId: b.coworkerId,
+      role: "COWORKER",
+      name:
+        b.coworker.coworkerProfile?.displayName ??
+        b.coworker.name ??
+        b.coworker.email,
+    });
+  }
+  if (b.customsAgentId && b.customsAgent) {
+    out.push({
+      userId: b.customsAgentId,
+      role: "CUSTOMS_AGENT",
+      name:
+        b.customsAgent.customsAgentProfile?.displayName ??
+        b.customsAgent.name ??
+        b.customsAgent.email,
+    });
+  }
+  return out;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

@@ -12,6 +12,7 @@ import { isMock } from "@/lib/payments";
 
 import { AcceptQuoteButton } from "./AcceptQuoteButton";
 import { MultiLegBookingForm } from "./MultiLegBookingForm";
+import { RatingStars } from "@/components/RatingStars";
 
 export default async function ShipmentDetailPage({
   params,
@@ -67,6 +68,19 @@ export default async function ShipmentDetailPage({
           },
         },
       },
+      customsQuotes: {
+        where: { status: { in: ["PENDING", "ACCEPTED"] } },
+        include: {
+          customsAgent: {
+            select: {
+              email: true,
+              customsAgentProfile: {
+                select: { displayName: true, ratingAvg: true, ratingCount: true },
+              },
+            },
+          },
+        },
+      },
     },
   });
 
@@ -75,8 +89,13 @@ export default async function ShipmentDetailPage({
   const mockMode = isMock();
   const isBooked = shipment.status === "BOOKED" && shipment.booking;
   const isExw = shipment.incoterm === "EXW";
+  const needsCustoms = shipment.needsCustomsClearance;
+  const isMultiLeg = isExw || needsCustoms;
   const pendingQuotes = shipment.quotes.filter((q) => q.status === "PENDING");
   const pendingPickups = shipment.coworkerQuotes.filter(
+    (q) => q.status === "PENDING"
+  );
+  const pendingCustoms = shipment.customsQuotes.filter(
     (q) => q.status === "PENDING"
   );
 
@@ -86,6 +105,7 @@ export default async function ShipmentDetailPage({
       priceUSDCents: q.priceUSDCents,
       transitDays: q.transitDays,
       forwarderRating: q.forwarder.forwarderProfile?.ratingAvg ?? 0,
+      forwarderRatingCount: q.forwarder.forwarderProfile?.ratingCount ?? 0,
       carrierName: q.carrierName,
       validUntil: q.validUntil,
       forwarderName:
@@ -101,6 +121,16 @@ export default async function ShipmentDetailPage({
       vehicleNote: p.vehicleNote,
       distanceKm: p.distanceKm,
       priceUSDCents: p.priceUSDCents,
+    }))
+    .sort((a, b) => a.priceUSDCents - b.priceUSDCents);
+
+  const customsOptions = pendingCustoms
+    .map((c) => ({
+      id: c.id,
+      agentName:
+        c.customsAgent.customsAgentProfile?.displayName ?? c.customsAgent.email,
+      etaDays: c.etaDays,
+      priceUSDCents: c.priceUSDCents,
     }))
     .sort((a, b) => a.priceUSDCents - b.priceUSDCents);
 
@@ -175,7 +205,7 @@ export default async function ShipmentDetailPage({
           locale={locale}
           tB={tB}
         />
-      ) : isExw ? (
+      ) : isMultiLeg ? (
         <div className="mt-10">
           <h2 className="mb-3 text-base font-medium text-zinc-900">
             {tQ("incoming", { count: ranked.length })}
@@ -183,6 +213,8 @@ export default async function ShipmentDetailPage({
           <MultiLegBookingForm
             shipmentId={shipment.id}
             locale={locale}
+            needsPickup={isExw}
+            needsCustoms={needsCustoms}
             freight={ranked.map((q) => ({
               id: q.id,
               forwarderName: q.forwarderName,
@@ -193,6 +225,7 @@ export default async function ShipmentDetailPage({
               isFastest: q.isFastest,
             }))}
             pickup={pickupOptions}
+            customs={customsOptions}
           />
         </div>
       ) : (
@@ -217,6 +250,11 @@ export default async function ShipmentDetailPage({
                       <span className="font-medium text-zinc-900">
                         {q.forwarderName}
                       </span>
+                      <RatingStars
+                        avg={q.forwarderRating}
+                        count={q.forwarderRatingCount}
+                        size="sm"
+                      />
                       {q.isCheapest && (
                         <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
                           {tQ("cheapest")}

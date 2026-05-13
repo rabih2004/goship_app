@@ -28,8 +28,16 @@ export default async function AdminUsersPage({
 
   const sp = await searchParams;
   const role =
-    sp.role && ["CUSTOMER", "FORWARDER", "COWORKER", "ADMIN"].includes(sp.role)
-      ? (sp.role as "CUSTOMER" | "FORWARDER" | "COWORKER" | "ADMIN")
+    sp.role &&
+    ["CUSTOMER", "FORWARDER", "COWORKER", "CUSTOMS_AGENT", "ADMIN"].includes(
+      sp.role
+    )
+      ? (sp.role as
+          | "CUSTOMER"
+          | "FORWARDER"
+          | "COWORKER"
+          | "CUSTOMS_AGENT"
+          | "ADMIN")
       : undefined;
   const q = (sp.q ?? "").trim();
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
@@ -61,6 +69,14 @@ export default async function AdminUsersPage({
             displayName: true,
             countryCode: true,
             cityArea: true,
+            onboardingComplete: true,
+          },
+        },
+        customsAgentProfile: {
+          select: {
+            displayName: true,
+            countryCode: true,
+            licenseNumber: true,
             onboardingComplete: true,
           },
         },
@@ -115,6 +131,7 @@ export default async function AdminUsersPage({
             <option value="CUSTOMER">CUSTOMER</option>
             <option value="FORWARDER">FORWARDER</option>
             <option value="COWORKER">COWORKER</option>
+            <option value="CUSTOMS_AGENT">CUSTOMS_AGENT</option>
             <option value="ADMIN">ADMIN</option>
           </select>
         </div>
@@ -179,6 +196,23 @@ export default async function AdminUsersPage({
                       )}
                     </div>
                   )}
+                  {u.customsAgentProfile && (
+                    <div className="mt-0.5 text-xs text-zinc-500">
+                      {u.customsAgentProfile.displayName} ({u.customsAgentProfile.countryCode})
+                      {u.customsAgentProfile.licenseNumber
+                        ? ` · ${u.customsAgentProfile.licenseNumber}`
+                        : ""}
+                      {u.customsAgentProfile.onboardingComplete ? (
+                        <span className="ms-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">
+                          {t("onboarded")}
+                        </span>
+                      ) : (
+                        <span className="ms-2 rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700">
+                          {t("notOnboarded")}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-xs font-mono text-zinc-700">{u.role}</td>
                 <td className="px-4 py-3 text-xs text-zinc-600">
@@ -193,6 +227,7 @@ export default async function AdminUsersPage({
                     </>
                   )}
                   {u.role === "COWORKER" && "—"}
+                  {u.role === "CUSTOMS_AGENT" && "—"}
                   {u.role === "ADMIN" && "—"}
                 </td>
                 <td className="px-4 py-3 text-xs text-zinc-600">

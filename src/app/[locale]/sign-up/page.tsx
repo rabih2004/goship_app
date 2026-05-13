@@ -19,7 +19,9 @@ export default async function SignUpPage({
       ? "FORWARDER"
       : sp.role === "coworker"
         ? "COWORKER"
-        : "CUSTOMER";
+        : sp.role === "customs"
+          ? "CUSTOMS_AGENT"
+          : "CUSTOMER";
 
   return <SignUpView locale={locale} defaultRole={defaultRole} />;
 }
@@ -29,7 +31,7 @@ function SignUpView({
   defaultRole,
 }: {
   locale: AppLocale;
-  defaultRole: "CUSTOMER" | "FORWARDER" | "COWORKER";
+  defaultRole: "CUSTOMER" | "FORWARDER" | "COWORKER" | "CUSTOMS_AGENT";
 }) {
   const t = useTranslations("Auth");
   return (

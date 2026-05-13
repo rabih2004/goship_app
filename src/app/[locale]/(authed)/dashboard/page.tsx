@@ -17,5 +17,6 @@ export default async function DashboardPage({
   if (role === "ADMIN") redirect({ href: "/admin", locale });
   if (role === "FORWARDER") redirect({ href: "/forwarder", locale });
   if (role === "COWORKER") redirect({ href: "/coworker", locale });
+  if (role === "CUSTOMS_AGENT") redirect({ href: "/customs", locale });
   redirect({ href: "/customer", locale });
 }
