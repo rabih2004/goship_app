@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 
 import { requireRole } from "@/lib/guards";
 import { db } from "@/lib/db";
-import { Link, redirect } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
+import { redirect } from "next/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
 
 import { ProfileForm } from "./ProfileForm";
@@ -37,7 +38,7 @@ export default async function CoworkerProfilePage({
       onboardingComplete: true,
     },
   });
-  if (!profile) redirect({ href: "/coworker/onboarding", locale });
+  if (!profile) redirect(`/${locale}/coworker/onboarding`);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-6 py-12">
