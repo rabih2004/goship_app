@@ -1,50 +1,41 @@
 /**
- * Fetch today's FX rates from exchangerate.host (free, no API key).
+ * Fetch today's FX rates from frankfurter.app (free, no API key, ECB data).
  *
- * Stored as `usdRate` = "USD per 1 unit of target currency", which is what
- * `convertFromUSDCents` expects. exchangerate.host gives rates relative to a
- * base — we use USD as base, so the API returns "target per 1 USD". We invert.
+ * Stored as `usdRate` = "USD per 1 unit of target currency". The API returns
+ * rates relative to USD base, so we invert each value.
  *
  * Idempotent for a given date: PK is `(date, currency)` so re-running just
- * upserts. Safe to run multiple times per day; the most-recent row wins via
- * `orderBy: { date: "desc" }`.
+ * upserts. Safe to run multiple times per day.
+ *
+ * Note: frankfurter.app covers ECB currencies. LBP/SAR/EGP/JOD/AED may be
+ * absent — those rows are simply skipped and the last seeded value stays.
  */
 import { db } from "@/lib/db";
 
 import { SUPPORTED_CURRENCIES } from "./fx";
 
-type ExchangeRateHostResponse = {
-  success?: boolean;
+type FrankfurterResponse = {
   base?: string;
+  date?: string;
   rates?: Record<string, number>;
 };
 
-/**
- * Pull rates for every supported currency (except USD itself) and write a row
- * per currency for today's date. Returns count written.
- *
- * Network failures are surfaced — caller (cron route or script) decides
- * whether to retry or alert.
- */
 export async function fetchAndPersistFxRates(): Promise<{
   date: string;
   written: number;
 }> {
   const symbols = SUPPORTED_CURRENCIES.filter((c) => c !== "USD").join(",");
-  const url = `https://api.exchangerate.host/latest?base=USD&symbols=${symbols}`;
+  const url = `https://api.frankfurter.app/latest?base=USD&symbols=${symbols}`;
 
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
-    throw new Error(
-      `FX fetch failed: ${res.status} ${res.statusText}`
-    );
+    throw new Error(`FX fetch failed: ${res.status} ${res.statusText}`);
   }
-  const data = (await res.json()) as ExchangeRateHostResponse;
+  const data = (await res.json()) as FrankfurterResponse;
   if (!data.rates || typeof data.rates !== "object") {
     throw new Error("FX fetch returned no rates payload");
   }
 
-  // Date column is DATE (no time). Use today UTC.
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
 
