@@ -1,0 +1,60 @@
+sequenceDiagram
+  autonumber
+  participant C as Customer
+  participant F as Forwarder
+  participant K as Coworker (pickup)
+  participant U as Customs Agent
+  participant A as Admin
+  participant P as Platform
+
+  Note over C,P: SIGN-UP & ONBOARDING (once per user)
+  C->>P: Sign up as customer
+  F->>P: Sign up + Stripe Connect onboarding + declare lanes
+  K->>P: Sign up + onboarding (map service area) + subscribe $29/mo
+  U->>P: Sign up + onboarding (country + license) + subscribe $49/mo
+
+  Note over C,P: RFQ to QUOTES (minutes to hours)
+  C->>P: Post RFQ (ExWorks, w/ customs, w/ insurance)
+  P-->>F: Notify forwarders on lane
+  P-->>K: Notify coworkers in radius
+  P-->>U: Notify customs agents in country
+  F->>P: Submit freight quote (price-anchored baseline)
+  K->>P: Submit pickup quote (km-suggested)
+  U->>P: Submit clearance quote (fee-suggested)
+  P-->>C: Notify quotes received
+
+  Note over C,P: BOOKING (single transaction)
+  C->>P: Pick one of each + accept all legs
+  P->>P: total = freight + pickup + customs + insurance
+  P->>P: platform fee = total * 7%
+  P-->>F: Quote accepted
+  P-->>K: Quote accepted
+  P-->>U: Quote accepted
+
+  Note over C,P: EXECUTION (days to weeks)
+  F->>P: Advance stage: LOADED
+  P-->>C: Notify + email
+  F->>P: Advance stage: DEPARTED
+  P-->>C: Notify + vessel-map enabled
+  F->>P: Upload Bill of Lading
+  P-->>C: Notify + email
+  F->>P: Advance: ARRIVED -> CLEARED -> DELIVERED
+  P-->>C: Notify each stage
+
+  Note over C,P: CHAT (anytime, scoped to booking)
+  C->>P: Send message
+  P-->>F: Unread badge in header
+  P-->>K: Unread badge in header
+  P-->>U: Unread badge in header
+
+  Note over C,P: POST-DELIVERY (review window opens)
+  C->>P: Rate forwarder + coworker + customs
+  F->>P: Rate customer
+  P-->>F: Notify review received
+
+  Note over C,P: IF SOMETHING GOES WRONG
+  C->>P: Open dispute (e.g. damaged cargo)
+  P-->>F: Notify dispute opened
+  A->>P: Review case + resolve with note
+  P-->>C: Notify dispute resolved
+  P-->>F: Notify dispute resolved

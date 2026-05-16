@@ -13,8 +13,6 @@ export type SignUpState = {
   fieldErrors?: Record<string, string>;
 };
 
-const initialState: SignUpState = { ok: false };
-
 export async function signUpAction(
   _prev: SignUpState | undefined,
   formData: FormData
@@ -95,5 +93,3 @@ export async function signUpAction(
 
   return { ok: true };
 }
-
-export { initialState };
