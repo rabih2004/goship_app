@@ -483,6 +483,7 @@ model Notification {
   // Hot path: "unread count for this user" + "recent for this user".
   @@index([userId, readAt])
   @@index([userId, createdAt])
+  @@map("notification")
 }
 
 // Recurring monthly subscriptions for Coworker + Customs Agent roles.
@@ -508,6 +509,7 @@ model Subscription {
 
   // Look up "the current active sub for this user" — common path.
   @@index([userId, status])
+  @@map("subscription")
 }
 
 model FxRate {
@@ -516,6 +518,7 @@ model FxRate {
   usdRate  Float    // 1 unit of currency = usdRate USD
 
   @@id([date, currency])
+  @@map("fx_rate")
 }
 
 // =====================================================================
