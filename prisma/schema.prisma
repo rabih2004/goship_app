@@ -51,8 +51,9 @@ model User {
   conversationReads   ConversationRead[]
   trackingEvents      TrackingEvent[]
   uploadedDocuments   Document[]
-  subscriptions       Subscription[]
-  notifications       Notification[]
+  subscriptions            Subscription[]
+  notifications            Notification[]
+  preferredPickupShipments Shipment[]     @relation("PreferredCoworker")
 
   @@map("user")
 }
@@ -222,16 +223,19 @@ model Shipment {
   factoryLng              Float?
   pickupContactName       String?                               @db.VarChar(120)
   pickupContactPhone      String?                               @db.VarChar(40)
+  // Customer's preferred coworker for the pickup leg (EXW only). Cleared after decline.
+  preferredCoworkerId     String?                               @db.VarChar(30)
   createdAt               DateTime        @default(now())
   updatedAt               DateTime        @updatedAt
 
-  customer        User      @relation("CustomerShipments", fields: [customerId], references: [id])
-  originPort      Port      @relation("ShipOrigin", fields: [originPortUnlocode], references: [unlocode])
-  destinationPort Port      @relation("ShipDestination", fields: [destinationPortUnlocode], references: [unlocode])
-  quotes          Quote[]
-  coworkerQuotes  CoworkerQuote[]
-  customsQuotes   CustomsQuote[]
-  booking         Booking?
+  customer           User      @relation("CustomerShipments", fields: [customerId], references: [id])
+  originPort         Port      @relation("ShipOrigin", fields: [originPortUnlocode], references: [unlocode])
+  destinationPort    Port      @relation("ShipDestination", fields: [destinationPortUnlocode], references: [unlocode])
+  preferredCoworker  User?     @relation("PreferredCoworker", fields: [preferredCoworkerId], references: [id])
+  quotes             Quote[]
+  coworkerQuotes     CoworkerQuote[]
+  customsQuotes      CustomsQuote[]
+  booking            Booking?
 
   @@index([status])
   @@index([originPortUnlocode, destinationPortUnlocode])
@@ -609,4 +613,6 @@ enum NotificationType {
   DISPUTE_OPENED
   DISPUTE_RESOLVED
   REVIEW_RECEIVED
+  PICKUP_REQUEST
+  PICKUP_REQUEST_BROADCAST
 }

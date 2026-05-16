@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { haversineKm, roundKm } from "@/lib/geo";
 import { isWithinServiceRadius } from "@/lib/coworker-pricing";
 import { hasActiveSubscription } from "@/lib/subscriptions-actions";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, createNotifications } from "@/lib/notifications";
 
 const submitInput = z.object({
   shipmentId: z.string().min(1),
@@ -151,4 +151,163 @@ export async function submitCoworkerQuoteAction(
   revalidatePath(`/${locale}/coworker/rfq/${shipment.id}`);
   revalidatePath(`/${locale}/customer/shipments/${shipment.id}`);
   redirect(`/${locale}/coworker/rfq?submitted=1`);
+}
+
+// ── Direct-request: one-click accept at standard rates ────────────────────────
+
+export async function acceptPickupRequestAction(
+  shipmentId: string,
+  locale: string
+): Promise<void> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "COWORKER") return;
+
+  const [profile, shipment] = await Promise.all([
+    db.coworkerProfile.findUnique({
+      where: { userId: session.user.id },
+      select: {
+        onboardingComplete: true,
+        serviceCenterLat: true,
+        serviceCenterLng: true,
+        baseFeeUSDCents: true,
+        perKmRateUSDCents: true,
+        vehicleType: true,
+      },
+    }),
+    db.shipment.findUnique({
+      where: { id: shipmentId },
+      select: {
+        id: true,
+        status: true,
+        incoterm: true,
+        customerId: true,
+        preferredCoworkerId: true,
+        factoryLat: true,
+        factoryLng: true,
+        factoryCity: true,
+        originPort: { select: { lat: true, lng: true, unlocode: true } },
+      },
+    }),
+  ]);
+
+  if (!profile?.onboardingComplete) return;
+  if (!shipment || shipment.status !== "RFQ_OPEN" || shipment.incoterm !== "EXW") return;
+  if (shipment.preferredCoworkerId !== session.user.id) return;
+  if (
+    shipment.factoryLat == null ||
+    shipment.factoryLng == null ||
+    shipment.originPort.lat == null ||
+    shipment.originPort.lng == null
+  ) return;
+
+  const portDistanceKm = roundKm(
+    haversineKm(
+      shipment.factoryLat,
+      shipment.factoryLng,
+      shipment.originPort.lat,
+      shipment.originPort.lng
+    )
+  );
+  const priceUSDCents =
+    profile.baseFeeUSDCents + Math.round(profile.perKmRateUSDCents * portDistanceKm);
+
+  try {
+    await db.coworkerQuote.create({
+      data: {
+        shipmentId: shipment.id,
+        coworkerId: session.user.id,
+        distanceKm: portDistanceKm,
+        priceUSDCents,
+        vehicleNote: profile.vehicleType,
+        validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+  } catch {
+    return; // already quoted (P2002)
+  }
+
+  await createNotification({
+    userId: shipment.customerId,
+    type: "NEW_QUOTE_RECEIVED",
+    shipmentId: shipment.id,
+    bodyText: `Pickup accepted · ${shipment.factoryCity ?? "factory"} · ${portDistanceKm} km`,
+    linkPath: `/customer/shipments/${shipment.id}`,
+  });
+
+  revalidatePath(`/${locale}/coworker/rfq`);
+  revalidatePath(`/${locale}/coworker/rfq/${shipmentId}`);
+  revalidatePath(`/${locale}/customer/shipments/${shipmentId}`);
+  redirect(`/${locale}/coworker/rfq?accepted=1`);
+}
+
+// ── Direct-request: decline + broadcast to country coworkers ─────────────────
+
+export async function declinePickupRequestAction(
+  shipmentId: string,
+  locale: string
+): Promise<void> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "COWORKER") return;
+
+  const shipment = await db.shipment.findUnique({
+    where: { id: shipmentId },
+    select: {
+      id: true,
+      status: true,
+      incoterm: true,
+      customerId: true,
+      preferredCoworkerId: true,
+      factoryCity: true,
+      factoryAddressLine: true,
+      originPortUnlocode: true,
+      originPort: { select: { country: true, unlocode: true } },
+    },
+  });
+
+  if (!shipment || shipment.status !== "RFQ_OPEN" || shipment.incoterm !== "EXW") return;
+  if (shipment.preferredCoworkerId !== session.user.id) return;
+
+  // Record the decline and clear the preferred coworker atomically.
+  await db.$transaction([
+    db.coworkerQuote.create({
+      data: {
+        shipmentId: shipment.id,
+        coworkerId: session.user.id,
+        distanceKm: 0,
+        priceUSDCents: 0,
+        validUntil: new Date(),
+        status: "REJECTED",
+      },
+    }),
+    db.shipment.update({
+      where: { id: shipment.id },
+      data: { preferredCoworkerId: null },
+    }),
+  ]);
+
+  // Broadcast to all other coworkers in the origin port's country.
+  const countryCoworkers = await db.coworkerProfile.findMany({
+    where: {
+      countryCode: shipment.originPort.country,
+      onboardingComplete: true,
+      userId: { not: session.user.id },
+    },
+    select: { userId: true },
+  });
+
+  if (countryCoworkers.length > 0) {
+    const route = `${shipment.factoryCity ?? shipment.factoryAddressLine} → ${shipment.originPortUnlocode}`;
+    await createNotifications(
+      countryCoworkers.map((c) => ({
+        userId: c.userId,
+        type: "PICKUP_REQUEST_BROADCAST" as const,
+        shipmentId: shipment.id,
+        bodyText: route,
+        linkPath: `/coworker/rfq/${shipment.id}`,
+      }))
+    );
+  }
+
+  revalidatePath(`/${locale}/coworker/rfq`);
+  redirect(`/${locale}/coworker/rfq?declined=1`);
 }

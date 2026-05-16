@@ -42,7 +42,23 @@ export default async function CoworkerRfqInboxPage({
       ? { lat: profile.serviceCenterLat, lng: profile.serviceCenterLng }
       : null;
 
-  // Fetch every open ExWorks RFQ the coworker hasn't already quoted on.
+  // Direct pickup requests: EXW shipments where this coworker was specifically chosen.
+  const directRequests = await db.shipment.findMany({
+    where: {
+      status: "RFQ_OPEN",
+      incoterm: "EXW",
+      preferredCoworkerId: user.id,
+      coworkerQuotes: { none: { coworkerId: user.id } },
+    },
+    include: {
+      customer: { select: { name: true, email: true } },
+      originPort: { select: { name: true, unlocode: true, lat: true, lng: true } },
+      destinationPort: { select: { name: true, unlocode: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Fetch open ExWorks RFQs in the general queue (no preferred coworker, or preference cleared after decline).
   const candidates = center
     ? await db.shipment.findMany({
         where: {
@@ -51,6 +67,7 @@ export default async function CoworkerRfqInboxPage({
           factoryLat: { not: null },
           factoryLng: { not: null },
           coworkerQuotes: { none: { coworkerId: user.id } },
+          preferredCoworkerId: null,
         },
         include: {
           customer: { select: { name: true, email: true } },
@@ -124,6 +141,51 @@ export default async function CoworkerRfqInboxPage({
           <span>{tSub("rfqLockedHint")}</span>
           <span className="dir-arrow" />
         </Link>
+      )}
+
+      {/* Direct pickup requests — always shown even without a service center */}
+      {directRequests.length > 0 && (
+        <div className="mb-8">
+          <h2 className="mb-3 text-base font-semibold text-zinc-900">
+            Direct Pickup Requests
+            <span className="ml-2 rounded-full bg-[var(--brand)] px-2 py-0.5 text-xs font-medium text-white">
+              {directRequests.length}
+            </span>
+          </h2>
+          <ul className="space-y-3">
+            {directRequests.map((s) => (
+              <li key={s.id} className="rounded-lg border-2 border-[var(--brand)]/40 bg-[var(--brand)]/5 p-4 transition hover:border-[var(--brand)]/70">
+                <Link
+                  href={`/coworker/rfq/${s.id}`}
+                  className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-[var(--brand)] px-2 py-0.5 text-xs font-medium text-white">
+                        Direct Request
+                      </span>
+                      <span className="font-medium text-zinc-900">
+                        {s.factoryCity || s.factoryAddressLine}
+                        <span className="px-2 text-zinc-400 dir-arrow" />
+                        {s.originPort.name} ({s.originPort.unlocode})
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      {tR("forCustomer", {
+                        name: s.customer.name ?? s.customer.email,
+                      })}
+                      {" · "}
+                      {tS(`container.${containerKey(s.containerType)}`)}
+                      {" · "}
+                      {s.weightKg} kg
+                    </div>
+                  </div>
+                  <span className="text-xl text-zinc-300 dir-arrow" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {!center && (

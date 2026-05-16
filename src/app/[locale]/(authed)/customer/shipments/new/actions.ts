@@ -38,6 +38,7 @@ const exwInput = baseInput.extend({
   factoryCity_lng: z.coerce.number().min(-180).max(180),
   pickupContactName: z.string().trim().min(1).max(120),
   pickupContactPhone: z.string().trim().min(1).max(40),
+  preferredCoworkerId: z.string().trim().max(30).optional(),
 });
 
 const createInput = z
@@ -107,11 +108,23 @@ export async function createShipmentAction(
             factoryLng: data.factoryCity_lng,
             pickupContactName: data.pickupContactName,
             pickupContactPhone: data.pickupContactPhone,
+            preferredCoworkerId: data.preferredCoworkerId || null,
           }
         : {}),
     },
     select: { id: true },
   });
+
+  // Notify the directly-selected coworker (EXW direct request).
+  if (data.incoterm === "EXW" && data.preferredCoworkerId) {
+    await createNotifications([{
+      userId: data.preferredCoworkerId,
+      type: "PICKUP_REQUEST" as const,
+      shipmentId: shipment.id,
+      bodyText: `${data.factoryCity || data.factoryAddressLine} → ${data.originPortUnlocode}`,
+      linkPath: `/coworker/rfq/${shipment.id}`,
+    }]);
+  }
 
   // Notify every forwarder with an active lane matching origin → destination
   // that a fresh RFQ landed in their inbox.

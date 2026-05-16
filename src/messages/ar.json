@@ -202,7 +202,9 @@
     "inboxHint": "شحنات ExWorks ضمن نطاق خدمتك",
     "wonBookings": "استلامات فائزة",
     "pendingQuotes": "عروض معلّقة",
-    "acceptedCount": "{count} مقبولة في الكل"
+    "acceptedCount": "{count} مقبولة في الكل",
+    "profileSection": "ملفك الشخصي",
+    "editProfile": "تعديل الملف"
   },
   "CoworkerRfq": {
     "title": "طلبات استلام قريبة منك",

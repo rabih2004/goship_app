@@ -12,12 +12,14 @@ export function PortSelect({
   defaultLabel,
   placeholder,
   invalid,
+  controlledSelection,
 }: {
   name: string;
   defaultValue?: string;
   defaultLabel?: string;
   placeholder?: string;
   invalid?: boolean;
+  controlledSelection?: { unlocode: string; name: string; country: string } | null;
 }) {
   const t = useTranslations("Common");
   const [selected, setSelected] = useState<PortHit | null>(
@@ -55,6 +57,26 @@ export function PortSelect({
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+
+  // Sync when parent programmatically sets a selection (e.g. auto-fill from lane).
+  useEffect(() => {
+    if (controlledSelection === undefined) return;
+    if (controlledSelection === null) {
+      setSelected(null);
+      setQuery("");
+      setResults([]);
+    } else {
+      const hit: PortHit = {
+        unlocode: controlledSelection.unlocode,
+        name: controlledSelection.name,
+        country: controlledSelection.country,
+      };
+      setSelected(hit);
+      setQuery(`${hit.name} (${hit.unlocode})`);
+      setOpen(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlledSelection?.unlocode]);
 
   function pick(hit: PortHit) {
     setSelected(hit);

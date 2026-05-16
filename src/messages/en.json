@@ -202,7 +202,9 @@
     "inboxHint": "ExWorks shipments within your service radius",
     "wonBookings": "Won pickups",
     "pendingQuotes": "Pending quotes",
-    "acceptedCount": "{count} accepted lifetime"
+    "acceptedCount": "{count} accepted lifetime",
+    "profileSection": "Your profile",
+    "editProfile": "Edit profile"
   },
   "CoworkerRfq": {
     "title": "Pickup RFQs near you",

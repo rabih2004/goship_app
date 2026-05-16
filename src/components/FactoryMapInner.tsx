@@ -62,6 +62,8 @@ export function FactoryMapInner({
   lngName,
   originPortName,
   defaultCenter = [33.9, 35.51], // Beirut
+  onPortSelected,
+  onFactoryPinned,
 }: {
   factoryAddressName: string;
   cityName: string;
@@ -69,6 +71,8 @@ export function FactoryMapInner({
   lngName: string;
   originPortName: string;
   defaultCenter?: [number, number];
+  onPortSelected?: (port: { unlocode: string; name: string; country: string }) => void;
+  onFactoryPinned?: (lat: number, lng: number) => void;
 }) {
   const t = useTranslations("FactoryMap");
 
@@ -124,12 +128,13 @@ export function FactoryMapInner({
       setFactory(pin);
       setSelectedPort(null);
       setRoute(null);
+      onFactoryPinned?.(pin.lat, pin.lng);
       startPorts(async () => {
         const hits = await suggestNearestPorts(pin.lat, pin.lng, 3);
         setPorts(hits);
       });
     },
-    []
+    [onFactoryPinned]
   );
 
   const handleSearchPick = (hit: PlaceHit) => {
@@ -176,6 +181,7 @@ export function FactoryMapInner({
   const handlePortPick = (port: SuggestedPort) => {
     setSelectedPort(port);
     setRoute(null);
+    onPortSelected?.({ unlocode: port.unlocode, name: port.name, country: port.country });
     if (!factory) return;
     startRoute(async () => {
       const r = await getDrivingRoute(factory.lat, factory.lng, port.lat, port.lng);

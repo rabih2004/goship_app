@@ -15,6 +15,7 @@ import { formatUSD } from "@/lib/money";
 import { hasActiveSubscription } from "@/lib/subscriptions-actions";
 
 import { PickupQuoteForm } from "./PickupQuoteForm";
+import { DirectRequestActions } from "./DirectRequestActions";
 
 export default async function CoworkerRfqDetailPage({
   params,
@@ -150,6 +151,32 @@ export default async function CoworkerRfqDetailPage({
           </Field>
         </dl>
       </div>
+
+      {/* Direct request banner + one-click accept/decline */}
+      {shipment.preferredCoworkerId === user.id && !existing && (
+        <div className="mt-8 rounded-lg border-2 border-[var(--brand)]/50 bg-[var(--brand)]/5 p-5">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-[var(--brand)] px-2 py-0.5 text-xs font-medium text-white">
+              Direct Request
+            </span>
+            <p className="text-sm font-medium text-zinc-900">
+              The customer has personally chosen you for this pickup.
+            </p>
+          </div>
+          <p className="mt-1 text-xs text-zinc-500">
+            Accept to submit your standard-rate quote instantly, or decline to
+            open this job to all coworkers in your country.
+          </p>
+          <div className="mt-4">
+            <DirectRequestActions
+              shipmentId={shipment.id}
+              locale={locale}
+              estimatedCents={suggestedCents}
+              portDistanceKm={portDistance}
+            />
+          </div>
+        </div>
+      )}
 
       <h2 className="mt-10 mb-4 text-base font-medium text-zinc-900">
         {tR("yourQuoteTitle")}

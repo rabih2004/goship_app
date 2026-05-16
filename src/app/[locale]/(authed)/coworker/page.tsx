@@ -126,15 +126,28 @@ export default async function CoworkerHome({
         </div>
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-3">
-        <Card label={tC("serviceArea")} big={profile?.cityArea ?? "—"}>
-          {tC("radiusKm", { km: profile?.serviceRadiusKm ?? 0 })}
-        </Card>
-        <Card
-          label={tC("perKmRate")}
-          big={formatPerKm(profile?.perKmRateUSDCents ?? 0)}
-        />
-        <Card label={tC("vehicleType")} big={profile?.vehicleType ?? "—"} />
+      <div className="mt-8">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            {tC("profileSection")}
+          </h2>
+          <Link
+            href="/coworker/profile"
+            className="text-sm text-[var(--brand)] underline hover:opacity-80"
+          >
+            {tC("editProfile")} →
+          </Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card label={tC("serviceArea")} big={profile?.cityArea ?? "—"}>
+            {tC("radiusKm", { km: profile?.serviceRadiusKm ?? 0 })}
+          </Card>
+          <Card
+            label={tC("perKmRate")}
+            big={formatPerKm(profile?.perKmRateUSDCents ?? 0)}
+          />
+          <Card label={tC("vehicleType")} big={profile?.vehicleType ?? "—"} />
+        </div>
       </div>
 
       {submittedCount > 0 && (

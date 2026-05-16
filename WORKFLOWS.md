@@ -735,19 +735,29 @@ Before flipping any `*_PROVIDER` env var from `mock` to real, verify:
 
 ## 13. Generating the workflow image
 
-The Mermaid diagrams above render automatically on GitHub, GitLab, and most modern markdown viewers (VSCode preview, Obsidian, Notion).
+The Mermaid diagrams above render automatically on GitHub, GitLab, and most modern markdown viewers (VSCode preview, Obsidian, Notion). Source-of-truth is [workflow.mmd](workflow.mmd) at the repo root.
 
-To produce a static PNG for slides or print:
+### Easiest — Mermaid Live Editor (no install)
+
+1. Open <https://mermaid.live>
+2. Paste the contents of `workflow.mmd` into the left panel
+3. Right panel renders instantly; click "Actions → PNG" to download
+
+### Local — render to PNG via CLI
 
 ```bash
-# One-shot, no install:
-npx -y @mermaid-js/mermaid-cli@latest -i workflow.mmd -o workflow.png -w 1600 -H 900
+# First time: install a Chrome that Puppeteer can find
+npx puppeteer browsers install chrome
 
-# Or for the master sequence diagram specifically:
-# (Copy the diagram block from § 4 above into workflow.mmd first.)
+# Then render (re-run anytime workflow.mmd changes)
+npx -y @mermaid-js/mermaid-cli@latest -i workflow.mmd -o workflow.png -w 1800 -H 2600 -b white
 ```
 
-The current rendered diagram (after running the command above) lives at `workflow.png` in the project root.
+On Windows, the `npx puppeteer browsers install chrome` step can fail mid-extract if antivirus is touching `~/.cache/puppeteer/chrome/`. If you see `Could not find Chrome` after install, delete `~/.cache/puppeteer/chrome/win64-*` and re-run, OR use Mermaid Live Editor instead.
+
+### For slides
+
+Export from Mermaid Live as SVG (vector — scales cleanly). Drop into Keynote / Slides / PowerPoint. The platform-flow boxes will remain crisp at any zoom level.
 
 ---
 

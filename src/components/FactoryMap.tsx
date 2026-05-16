@@ -29,6 +29,8 @@ export function FactoryMap(props: {
   lngName: string;
   originPortName: string;
   defaultCenter?: [number, number];
+  onPortSelected?: (port: { unlocode: string; name: string; country: string }) => void;
+  onFactoryPinned?: (lat: number, lng: number) => void;
 }) {
   return <Inner {...props} />;
 }

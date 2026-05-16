@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 
 import { PortSelect } from "@/components/PortSelect";
@@ -12,6 +12,12 @@ import { FormError, FieldError } from "@/components/ui/FormError";
 import { cn } from "@/lib/cn";
 
 import { createShipmentAction, type NewShipmentState } from "./actions";
+import {
+  getDestinationsFromOrigin,
+  getNearbyCoworkers,
+  type DestinationOption,
+  type NearbyCoworker,
+} from "./exw-queries";
 
 const initialState: NewShipmentState = { ok: false };
 
@@ -27,6 +33,10 @@ const CONTAINER_OPTIONS: Array<{
 
 type Incoterm = "FOB" | "EXW";
 
+function fmtUSD(cents: number) {
+  return `$${(cents / 100).toFixed(0)}`;
+}
+
 export function NewShipmentForm({ locale }: { locale: "en" | "ar" }) {
   const t = useTranslations("Shipments");
   const tInco = useTranslations("Shipments.incoterm");
@@ -34,6 +44,17 @@ export function NewShipmentForm({ locale }: { locale: "en" | "ar" }) {
   const [state, action, pending] = useActionState(createShipmentAction, initialState);
   const [incoterm, setIncoterm] = useState<Incoterm>("FOB");
   const [wantsInsurance, setWantsInsurance] = useState(false);
+
+  // EXW: destination auto-fill state
+  const [destinations, setDestinations] = useState<DestinationOption[]>([]);
+  const [destSelection, setDestSelection] = useState<DestinationOption | null>(null);
+  const [destPending, startDestFetch] = useTransition();
+
+  // EXW: nearby coworker list + selection
+  const [coworkers, setCoworkers] = useState<NearbyCoworker[]>([]);
+  const [coworkersPending, startCoworkerFetch] = useTransition();
+  const [selectedCoworkerId, setSelectedCoworkerId] = useState<string | null>(null);
+
   const fe = state.fieldErrors ?? {};
 
   const errMessage =
@@ -44,6 +65,26 @@ export function NewShipmentForm({ locale }: { locale: "en" | "ar" }) {
         : state.error === "unknown"
           ? t("errUnknown")
           : null;
+
+  function handleOriginPortSelected(port: { unlocode: string; name: string; country: string }) {
+    setDestSelection(null);
+    setDestinations([]);
+    startDestFetch(async () => {
+      const opts = await getDestinationsFromOrigin(port.unlocode);
+      setDestinations(opts);
+      // Auto-select if exactly one destination lane exists from this port.
+      if (opts.length === 1) setDestSelection(opts[0]);
+    });
+  }
+
+  function handleFactoryPinned(lat: number, lng: number) {
+    setCoworkers([]);
+    setSelectedCoworkerId(null);
+    startCoworkerFetch(async () => {
+      const list = await getNearbyCoworkers(lat, lng);
+      setCoworkers(list);
+    });
+  }
 
   return (
     <form action={action} className="flex flex-col gap-5">
@@ -71,22 +112,103 @@ export function NewShipmentForm({ locale }: { locale: "en" | "ar" }) {
       </div>
 
       {incoterm === "EXW" && (
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-          <h3 className="mb-3 text-sm font-medium text-zinc-900">
+        <div className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+          <h3 className="text-sm font-medium text-zinc-900">
             {tInco("exwSectionTitle")}
           </h3>
+
+          {/* Map: pins factory + selects nearest origin port */}
           <FactoryMap
             factoryAddressName="factoryAddressLine"
             cityName="factoryCity"
             latName="factoryCity_lat"
             lngName="factoryCity_lng"
             originPortName="originPortUnlocode"
+            onPortSelected={handleOriginPortSelected}
+            onFactoryPinned={handleFactoryPinned}
           />
           <FieldError>
             {fe.factoryAddressLine ?? fe.factoryCity ?? fe.originPortUnlocode}
           </FieldError>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {/* Nearby coworker list — customer selects one to send a direct request */}
+          {(coworkersPending || coworkers.length > 0) && (
+            <div>
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                {coworkersPending
+                  ? "Finding available pickup operators…"
+                  : `Available pickup operators (${coworkers.length}) — select one to send a direct request`}
+              </p>
+              {selectedCoworkerId && (
+                <p className="mb-2 text-xs text-emerald-700">
+                  ✓ Direct request will be sent to the selected operator. They can accept or decline.
+                </p>
+              )}
+              <input type="hidden" name="preferredCoworkerId" value={selectedCoworkerId ?? ""} />
+              {!coworkersPending && (
+                <ul className="grid gap-2 sm:grid-cols-2">
+                  {coworkers.map((c) => {
+                    const selected = selectedCoworkerId === c.userId;
+                    const estCents = c.baseFeeUSDCents + Math.round(c.perKmRateUSDCents * c.distanceKm);
+                    return (
+                      <li key={c.userId}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedCoworkerId(selected ? null : c.userId)
+                          }
+                          className={cn(
+                            "w-full rounded-md border p-3 text-left text-sm transition",
+                            selected
+                              ? "border-[var(--brand)] bg-[var(--brand)]/5 ring-1 ring-[var(--brand)]"
+                              : "border-zinc-200 bg-white hover:border-zinc-400"
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="font-medium text-zinc-900">{c.displayName}</div>
+                              <div className="text-xs text-zinc-500">{c.cityArea}</div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              {c.ratingCount > 0 && (
+                                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                  ★ {c.ratingAvg.toFixed(1)}
+                                </span>
+                              )}
+                              {selected && (
+                                <span className="rounded-full bg-[var(--brand)] px-2 py-0.5 text-xs font-medium text-white">
+                                  Selected
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-600">
+                            <span>🚚 {c.vehicleType}</span>
+                            <span>{c.distanceKm} km away</span>
+                            <span>Up to {c.vehicleCapacityKg.toLocaleString()} kg</span>
+                          </div>
+                          <div className="mt-2 rounded-md bg-zinc-50 px-3 py-2 text-xs">
+                            <span className="font-medium text-zinc-900">
+                              {fmtUSD(c.baseFeeUSDCents)} base
+                            </span>
+                            <span className="text-zinc-500">
+                              {" "}+ {fmtUSD(c.perKmRateUSDCents)}/km
+                            </span>
+                            <span className="ml-2 text-zinc-400">
+                              ≈ {fmtUSD(estCents)} for {c.distanceKm} km
+                            </span>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* Factory contact */}
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="pickupContactName">{tInco("pickupContactName")}</Label>
               <Input
@@ -126,9 +248,33 @@ export function NewShipmentForm({ locale }: { locale: "en" | "ar" }) {
         )}
         <div>
           <Label>{t("destination")}</Label>
+          {/* In EXW mode: show quick-pick buttons for lanes from the selected origin port */}
+          {incoterm === "EXW" && destinations.length > 1 && (
+            <div className="mb-2 flex flex-wrap gap-1">
+              {destinations.map((d) => (
+                <button
+                  key={d.unlocode}
+                  type="button"
+                  onClick={() => setDestSelection(d)}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-xs transition",
+                    destSelection?.unlocode === d.unlocode
+                      ? "border-[var(--brand)] bg-[var(--brand)]/10 text-[var(--brand)] font-medium"
+                      : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400"
+                  )}
+                >
+                  {d.name} ({d.unlocode})
+                </button>
+              ))}
+            </div>
+          )}
+          {incoterm === "EXW" && destPending && (
+            <p className="mb-1 text-xs text-zinc-400">Loading available destinations…</p>
+          )}
           <PortSelect
             name="destinationPortUnlocode"
             invalid={!!fe.destinationPortUnlocode}
+            controlledSelection={incoterm === "EXW" ? destSelection : undefined}
           />
           <FieldError>{fe.destinationPortUnlocode}</FieldError>
         </div>

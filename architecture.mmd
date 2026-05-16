@@ -1,0 +1,42 @@
+graph TB
+  subgraph "Client Layer"
+    BR[Browser<br/>en + ar w/ RTL]
+  end
+
+  subgraph "Next.js 16 App"
+    PAGES[App Router<br/>Server Components + Server Actions]
+    AUTH[Auth.js v5<br/>JWT sessions]
+    I18N[next-intl<br/>EN + AR]
+  end
+
+  subgraph "Data"
+    DB[(MySQL 5.7<br/>via Prisma)]
+    R2[(Cloudflare R2<br/>Documents)]
+    FX[(FxRate snapshots)]
+  end
+
+  subgraph "External — mock-first"
+    STRIPE[Stripe Connect<br/>Payments + KYC]
+    RESEND[Resend<br/>Transactional email]
+    OSM[OpenStreetMap +<br/>Nominatim + OSRM]
+    EX[Frankfurter.app<br/>Daily FX rates]
+    CMA[CMA CGM / Freighty<br/>Carrier pricing]
+    AIS[MarineTraffic / AIS<br/>Vessel tracking]
+  end
+
+  BR --> PAGES
+  PAGES --> AUTH
+  PAGES --> I18N
+  PAGES --> DB
+  PAGES --> R2
+  PAGES --> STRIPE
+  PAGES --> RESEND
+  PAGES --> OSM
+  PAGES --> CMA
+  PAGES --> AIS
+  PAGES --> FX
+  FX -.daily cron.-> EX
+
+  style STRIPE stroke-dasharray: 5 5
+  style CMA stroke-dasharray: 5 5
+  style AIS stroke-dasharray: 5 5
