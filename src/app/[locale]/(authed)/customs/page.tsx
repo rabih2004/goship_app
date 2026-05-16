@@ -108,35 +108,43 @@ export default async function CustomsHome({
         </Link>
       )}
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Link
-          href="/customs/rfq"
-          className="rounded-lg border border-[var(--brand)]/40 bg-[var(--brand)]/5 p-5 transition hover:border-[var(--brand)]"
-        >
-          <div className="text-2xl font-semibold text-zinc-900">{inboxCount}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-zinc-500">
-            {tC("inboundRfqs")}
-          </div>
-          <div className="mt-1 text-xs text-zinc-600">
-            {tC("inboxHint", { country: profile?.countryCode ?? "—" })}
-          </div>
-        </Link>
-        <Link
-          href="/customs/bookings"
-          className="rounded-lg border border-zinc-200 bg-white p-5 transition hover:border-zinc-400"
-        >
-          <div className="text-2xl font-semibold text-zinc-900">{bookedCount}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-zinc-500">
-            {tC("wonClearances")}
-          </div>
-        </Link>
-        <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <div className="text-2xl font-semibold text-zinc-900">{pendingCount}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-zinc-500">
-            {tC("pendingQuotes")}
-          </div>
+      <div className="mt-8">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Activity</h2>
+          <Link href="/customs/profile" className="text-sm text-[var(--brand)] underline hover:opacity-80">
+            Edit profile →
+          </Link>
         </div>
-      </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Link
+            href="/customs/rfq"
+            className="rounded-lg border border-[var(--brand)]/40 bg-[var(--brand)]/5 p-5 transition hover:border-[var(--brand)]"
+          >
+            <div className="text-2xl font-semibold text-zinc-900">{inboxCount}</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-zinc-500">
+              {tC("inboundRfqs")}
+            </div>
+            <div className="mt-1 text-xs text-zinc-600">
+              {tC("inboxHint", { country: profile?.countryCode ?? "—" })}
+            </div>
+          </Link>
+          <Link
+            href="/customs/bookings"
+            className="rounded-lg border border-zinc-200 bg-white p-5 transition hover:border-zinc-400"
+          >
+            <div className="text-2xl font-semibold text-zinc-900">{bookedCount}</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-zinc-500">
+              {tC("wonClearances")}
+            </div>
+          </Link>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <div className="text-2xl font-semibold text-zinc-900">{pendingCount}</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-zinc-500">
+              {tC("pendingQuotes")}
+            </div>
+          </div>
+        </div>{/* /grid */}
+      </div>{/* /activity */}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <Card

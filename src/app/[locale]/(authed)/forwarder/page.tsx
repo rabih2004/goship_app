@@ -78,7 +78,13 @@ export default async function ForwarderHome({
         </Link>
       )}
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 flex justify-end">
+        <Link href="/forwarder/profile" className="text-sm text-[var(--brand)] underline hover:opacity-80">
+          Edit profile →
+        </Link>
+      </div>
+
+      <div className="mt-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card
           href="/forwarder/rfq"
           big={String(inboxCount)}
