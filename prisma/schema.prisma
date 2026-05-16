@@ -24,6 +24,9 @@ model User {
   passwordHash  String?                          @db.VarChar(120)
   role          UserRole  @default(CUSTOMER)
   locale        String    @default("en")         @db.VarChar(10)
+  // Display currency for money on user-facing pages. Settlement stays in USD
+  // (Stripe / Connect). ISO 4217, validated against the FxRate table.
+  preferredCurrency String @default("USD")       @db.VarChar(3)
   suspended     Boolean   @default(false)
   image         String?                          @db.VarChar(500)
   createdAt     DateTime  @default(now())
@@ -48,6 +51,8 @@ model User {
   conversationReads   ConversationRead[]
   trackingEvents      TrackingEvent[]
   uploadedDocuments   Document[]
+  subscriptions       Subscription[]
+  notifications       Notification[]
 }
 
 model Account {
@@ -195,6 +200,9 @@ model Shipment {
   status                  ShipmentStatus  @default(RFQ_OPEN)
   // Customer wants customs clearance handled by an agent at destination.
   needsCustomsClearance   Boolean         @default(false)
+  // Optional cargo-insurance opt-in. Declared at RFQ time, priced at booking.
+  wantsInsurance          Boolean         @default(false)
+  cargoValueUSDCents      Int?
   // ExWorks-only: pickup factory + contact (nullable, populated when incoterm = EXW)
   factoryAddressLine      String?                               @db.VarChar(300)
   factoryCity             String?                               @db.VarChar(120)
@@ -291,6 +299,9 @@ model Booking {
   customsQuoteId        String?  @unique                @db.VarChar(30)
   customsAgentId        String?                         @db.VarChar(30)
   customsAmountUSDCents Int      @default(0)
+  // Cargo insurance — snapshot at booking time. Null/zero = no insurance.
+  insuranceUSDCents     Int      @default(0)
+  cargoValueUSDCents    Int?
   bookingNumber         String   @unique                @db.VarChar(40)
   stripePaymentIntentId String?  @unique                @db.VarChar(80)
   stripeCheckoutId      String?  @unique                @db.VarChar(80)
@@ -311,6 +322,28 @@ model Booking {
   documents      Document[]
   reviews        Review[]
   conversation   Conversation?
+  disputes       Dispute[]
+}
+
+// Customer/forwarder-raised dispute on a booking. Out-of-band resolution by
+// admin in v1 — no escrow, no automated refunds. Admin marks RESOLVED with a
+// short note that both parties can read on their booking detail page.
+model Dispute {
+  id            String         @id @default(cuid()) @db.VarChar(30)
+  bookingId     String                                @db.VarChar(30)
+  openedByUserId String                               @db.VarChar(30)
+  reason        DisputeReason
+  description   String                                @db.Text
+  status        DisputeStatus @default(OPEN)
+  adminNote     String?                               @db.Text
+  resolvedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([status])
 }
 
 // One conversation per booking. All booking parties (customer + forwarder
@@ -402,6 +435,55 @@ model Document {
   @@index([bookingId])
 }
 
+// In-app notifications. One row per (user, event) — fan-out at write time
+// rather than fan-in at read time so the inbox query stays a single index hit.
+//
+// `type` provides the verb (template); `bodyText` carries proper nouns
+// ("Booking GS-2026-0042 advanced to Loaded"). `linkPath` is locale-less —
+// the bell prepends the current locale at render time.
+model Notification {
+  id         String           @id @default(cuid()) @db.VarChar(30)
+  userId     String                                @db.VarChar(30)
+  type       NotificationType
+  bookingId  String?                               @db.VarChar(30)
+  shipmentId String?                               @db.VarChar(30)
+  bodyText   String?                               @db.VarChar(280)
+  linkPath   String?                               @db.VarChar(300)
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Hot path: "unread count for this user" + "recent for this user".
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+// Recurring monthly subscriptions for Coworker + Customs Agent roles.
+// Forwarders are not gated by this — they pay platform commission per booking
+// via Stripe Connect. Customers don't pay platform fees, only shipments.
+model Subscription {
+  id                     String             @id @default(cuid()) @db.VarChar(30)
+  userId                 String                                  @db.VarChar(30)
+  // Snapshot of the role at sub-time; lets us scope tier validation cleanly.
+  role                   UserRole
+  tierName               String                                  @db.VarChar(40)  // "Basic" / "Pro" later
+  priceUSDCents          Int
+  currentPeriodStart     DateTime
+  currentPeriodEnd       DateTime
+  status                 SubscriptionStatus @default(ACTIVE)
+  provider               String             @default("mock")     @db.VarChar(20)  // "mock" | "stripe"
+  providerSubscriptionId String?                                 @db.VarChar(120)
+  cancelledAt            DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Look up "the current active sub for this user" — common path.
+  @@index([userId, status])
+}
+
 model FxRate {
   date     DateTime
   currency String   @db.VarChar(3) // ISO 4217
@@ -466,4 +548,36 @@ enum DocumentType {
   INVOICE
   PACKING_LIST
   OTHER
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+  REJECTED
+}
+
+enum DisputeReason {
+  DAMAGED_CARGO
+  LATE_DELIVERY
+  WRONG_CARGO
+  DOCUMENTATION
+  BILLING
+  OTHER
+}
+
+enum NotificationType {
+  NEW_RFQ_ON_LANE
+  NEW_QUOTE_RECEIVED
+  QUOTE_ACCEPTED
+  BOOKING_STAGE_ADVANCED
+  DOCUMENT_UPLOADED
+  DISPUTE_OPENED
+  DISPUTE_RESOLVED
+  REVIEW_RECEIVED
 }

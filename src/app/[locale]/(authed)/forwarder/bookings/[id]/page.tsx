@@ -12,6 +12,9 @@ import { AdvanceStageForm } from "./AdvanceStageForm";
 import { UploadDocumentForm } from "./UploadDocumentForm";
 import { ReviewPanel } from "@/components/ReviewPanel";
 import { ChatPanel } from "@/components/ChatPanel";
+import { VesselMap } from "@/components/VesselMap";
+import { getVesselPosition } from "@/lib/vessel-tracking";
+import { DisputePanel } from "@/components/DisputePanel";
 
 const STAGES = ["BOOKED", "LOADED", "DEPARTED", "ARRIVED", "CLEARED", "DELIVERED"] as const;
 type Stage = (typeof STAGES)[number];
@@ -40,8 +43,8 @@ export default async function ForwarderBookingDetailPage({
           readyDate: true,
           incoterm: true,
           cargoDescription: true,
-          originPort: { select: { name: true, unlocode: true } },
-          destinationPort: { select: { name: true, unlocode: true } },
+          originPort: { select: { name: true, unlocode: true, lat: true, lng: true } },
+          destinationPort: { select: { name: true, unlocode: true, lat: true, lng: true } },
         },
       },
       customer: { select: { email: true, name: true } },
@@ -107,6 +110,22 @@ export default async function ForwarderBookingDetailPage({
   const idx = STAGES.indexOf(currentStage);
   const nextStage = STAGES[idx + 1] ?? null;
   const atFinal = currentStage === "DELIVERED";
+
+  const vesselPosition = await getVesselPosition({
+    origin: {
+      lat: booking.shipment.originPort.lat,
+      lng: booking.shipment.originPort.lng,
+    },
+    destination: {
+      lat: booking.shipment.destinationPort.lat,
+      lng: booking.shipment.destinationPort.lng,
+    },
+    events: booking.trackingEvents.map((e) => ({
+      stage: e.stage,
+      occurredAt: e.occurredAt,
+    })),
+    transitDays: booking.quote.transitDays,
+  }).catch(() => null);
 
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-12">
@@ -207,6 +226,44 @@ export default async function ForwarderBookingDetailPage({
         />
       </div>
 
+      {vesselPosition &&
+        booking.shipment.originPort.lat != null &&
+        booking.shipment.originPort.lng != null &&
+        booking.shipment.destinationPort.lat != null &&
+        booking.shipment.destinationPort.lng != null && (
+          <div className="mt-6">
+            <h3 className="mb-2 text-sm font-medium text-zinc-900">
+              {tB("vesselPositionTitle")}
+            </h3>
+            <VesselMap
+              origin={{
+                lat: booking.shipment.originPort.lat,
+                lng: booking.shipment.originPort.lng,
+                name: booking.shipment.originPort.name,
+                unlocode: booking.shipment.originPort.unlocode,
+              }}
+              destination={{
+                lat: booking.shipment.destinationPort.lat,
+                lng: booking.shipment.destinationPort.lng,
+                name: booking.shipment.destinationPort.name,
+                unlocode: booking.shipment.destinationPort.unlocode,
+              }}
+              vessel={{
+                lat: vesselPosition.lat,
+                lng: vesselPosition.lng,
+                fraction: vesselPosition.fraction,
+              }}
+            />
+            <p className="mt-2 text-xs text-zinc-500">
+              {tB("vesselPositionHint", {
+                eta: new Date(vesselPosition.etaMs)
+                  .toISOString()
+                  .slice(0, 10),
+              })}
+            </p>
+          </div>
+        )}
+
       <h2 className="mt-10 mb-3 text-base font-medium text-zinc-900">
         {tD("title")}
       </h2>
@@ -252,6 +309,8 @@ export default async function ForwarderBookingDetailPage({
         currentUserId={user.id}
         locale={locale}
       />
+
+      <DisputePanel bookingId={booking.id} locale={locale} />
 
       <ReviewPanel
         bookingId={booking.id}

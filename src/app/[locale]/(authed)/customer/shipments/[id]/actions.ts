@@ -10,6 +10,8 @@ import { isMock } from "@/lib/payments";
 import { generateBookingNumber } from "@/lib/booking-numbers";
 import { sendEmail, tplBookingConfirmedToForwarder } from "@/lib/email";
 import { formatUSD } from "@/lib/money";
+import { computeInsuranceCents } from "@/lib/insurance";
+import { createNotification, createNotifications } from "@/lib/notifications";
 
 const acceptInput = z.object({
   shipmentId: z.string().min(1),
@@ -70,6 +72,8 @@ export async function acceptQuoteAction(
       status: true,
       incoterm: true,
       needsCustomsClearance: true,
+      wantsInsurance: true,
+      cargoValueUSDCents: true,
     },
   });
   if (!shipment || shipment.customerId !== session.user.id) {
@@ -167,7 +171,12 @@ export async function acceptQuoteAction(
 
   const pickupCents = pickup?.priceUSDCents ?? 0;
   const customsCents = customs?.priceUSDCents ?? 0;
-  const totalUSDCents = quote.priceUSDCents + pickupCents + customsCents;
+  const insuranceCents = computeInsuranceCents(
+    shipment.wantsInsurance,
+    shipment.cargoValueUSDCents
+  );
+  const totalUSDCents =
+    quote.priceUSDCents + pickupCents + customsCents + insuranceCents;
   const commissionPct = Number(process.env.PLATFORM_COMMISSION_PERCENT ?? 7);
   const platformFeeUSDCents = Math.round(totalUSDCents * (commissionPct / 100));
 
@@ -190,6 +199,8 @@ export async function acceptQuoteAction(
               customsQuoteId: customs?.id,
               customsAgentId: customs?.customsAgentId,
               customsAmountUSDCents: customsCents,
+              insuranceUSDCents: insuranceCents,
+              cargoValueUSDCents: shipment.cargoValueUSDCents ?? null,
               bookingNumber,
               totalUSDCents,
               platformFeeUSDCents,
@@ -333,6 +344,32 @@ export async function acceptQuoteAction(
         }).catch((err) => console.error("customs booking email failed:", err));
       }
     }
+
+    // In-app notifications fan-out to every leg winner.
+    const winners: Array<{ userId: string; linkPath: string }> = [
+      { userId: quote.forwarderId, linkPath: `/forwarder/bookings/${booking.id}` },
+    ];
+    if (pickup) {
+      winners.push({
+        userId: pickup.coworkerId,
+        linkPath: `/coworker/bookings/${booking.id}`,
+      });
+    }
+    if (customs) {
+      winners.push({
+        userId: customs.customsAgentId,
+        linkPath: `/customs/bookings/${booking.id}`,
+      });
+    }
+    await createNotifications(
+      winners.map((w) => ({
+        userId: w.userId,
+        type: "QUOTE_ACCEPTED" as const,
+        bookingId: booking.id,
+        bodyText: booking.bookingNumber,
+        linkPath: w.linkPath,
+      }))
+    );
 
     revalidatePath(`/${locale}/customer/shipments/${shipmentId}`);
     revalidatePath(`/${locale}/customer/shipments`);

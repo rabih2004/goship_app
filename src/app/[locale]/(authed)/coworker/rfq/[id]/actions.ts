@@ -8,6 +8,8 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { haversineKm, roundKm } from "@/lib/geo";
 import { isWithinServiceRadius } from "@/lib/coworker-pricing";
+import { hasActiveSubscription } from "@/lib/subscriptions-actions";
+import { createNotification } from "@/lib/notifications";
 
 const submitInput = z.object({
   shipmentId: z.string().min(1),
@@ -25,6 +27,7 @@ export type SubmitCoworkerQuoteState = {
     | "auth"
     | "validation"
     | "onboarding"
+    | "subscription"
     | "shipmentNotFound"
     | "shipmentNotOpen"
     | "outOfRadius"
@@ -69,14 +72,20 @@ export async function submitCoworkerQuoteAction(
     return { ok: false, error: "onboarding" };
   }
 
+  if (!(await hasActiveSubscription(session.user.id))) {
+    return { ok: false, error: "subscription" };
+  }
+
   const shipment = await db.shipment.findUnique({
     where: { id: shipmentId },
     select: {
       id: true,
       status: true,
       incoterm: true,
+      customerId: true,
       factoryLat: true,
       factoryLng: true,
+      factoryCity: true,
     },
   });
   if (!shipment) return { ok: false, error: "shipmentNotFound" };
@@ -129,6 +138,14 @@ export async function submitCoworkerQuoteAction(
     console.error("submitCoworkerQuoteAction failed:", e);
     return { ok: false, error: "unknown" };
   }
+
+  await createNotification({
+    userId: shipment.customerId,
+    type: "NEW_QUOTE_RECEIVED",
+    shipmentId: shipment.id,
+    bodyText: `Pickup · ${shipment.factoryCity ?? "factory"} · ${distanceKm} km`,
+    linkPath: `/customer/shipments/${shipment.id}`,
+  });
 
   revalidatePath(`/${locale}/coworker/rfq`);
   revalidatePath(`/${locale}/coworker/rfq/${shipment.id}`);

@@ -169,16 +169,167 @@ Server actions in [src/lib/chat.ts](src/lib/chat.ts):
 
 UI: [src/components/ChatPanel.tsx](src/components/ChatPanel.tsx) (server, loads + renders messages), [src/components/ChatComposer.tsx](src/components/ChatComposer.tsx) (client, `useActionState` + auto-reset), [src/components/MarkAsReadOnMount.tsx](src/components/MarkAsReadOnMount.tsx) (fires once on page mount), [src/components/UnreadBadge.tsx](src/components/UnreadBadge.tsx) (rose pill in the (authed) layout header). Wired into all 4 booking detail pages. `Chat` namespace added to EN + AR.
 
+#### Sprint 17 — Carrier pricing abstraction
+Provider-flag pattern (mock | cmacgm | freighty) for baseline rate lookups. Mock returns a deterministic anchor rate per lane+container so forwarders see suggested pricing instead of bidding blind on day one.
+
+[src/lib/carrier-pricing.ts](src/lib/carrier-pricing.ts) — `getBaselineRate({ origin, destination, containerType })` dispatches by `CARRIER_PRICING_PROVIDER`. Mock uses `haversineKm` × per-km cents × container multiplier (LCL 0.35 / 20ft 1.0 / 40ft 1.6 / 40HC 1.72), floors transit at 7 days, and picks a stable carrier brand via lane-string hash. CMA CGM and Freighty stubs throw explicit "not yet wired" errors so flipping the env var without keys is loud, not silent. 8 Vitest tests for determinism, container ordering, transit floor, and source tagging.
+
+[src/app/[locale]/(authed)/forwarder/rfq/[id]/page.tsx](src/app/[locale]/(authed)/forwarder/rfq/[id]/page.tsx) — fetches `getBaselineRate(...)` server-side (wrapped in `.catch(() => null)` so a stub-flag misfire degrades to no panel, not a crashed page) and renders a sky-50 baseline panel above the quote form: `"Around $X, Y transit days via Hapag-Lloyd. We've pre-filled your form — adjust to win the bid."` Defaults are passed into `QuoteForm` to pre-populate price/transit/carrier inputs. `Rfq.baselineTitle/Body/Source` added to EN + AR. `CARRIER_PRICING_PROVIDER=mock` added to `.env.example`.
+
+#### Sprint 18 — Vessel tracking mock + map display
+Provider-flag pattern (mock | marinetraffic | ais) for vessel positions. Mock interpolates the ship's lat/lng along the great-circle arc using the fraction of transit days elapsed since the `DEPARTED` tracking event.
+
+[src/lib/vessel-tracking.ts](src/lib/vessel-tracking.ts) — `getVesselPosition({origin, destination, events, transitDays})`. `interpolateGreatCircle` does proper slerp on the unit sphere (so trans-Pacific lanes curve north correctly instead of looking like a rhumb line). Returns null before DEPARTED, snaps to destination on ARRIVED, returns null after CLEARED/DELIVERED (cargo no longer on a vessel). Real providers stub-throw. 11 Vitest tests covering endpoints, clamping, missing coords, stage gating, and slerp midpoint.
+
+UI: [src/components/VesselMap.tsx](src/components/VesselMap.tsx) (`next/dynamic({ ssr: false })` wrapper) + [VesselMapInner.tsx](src/components/VesselMapInner.tsx) — react-leaflet map with origin/destination port markers (teal pins), great-circle route as 64-segment dashed polyline, blue anchor pin at vessel position with permanent "{X}% en route" tooltip. Auto-fits bounds to all three points with 0.2 padding.
+
+Wired into [customer/bookings/[id]/page.tsx](src/app/[locale]/(authed)/customer/bookings/[id]/page.tsx) and [forwarder/bookings/[id]/page.tsx](src/app/[locale]/(authed)/forwarder/bookings/[id]/page.tsx) — page query extended to select port `lat`/`lng`, `getVesselPosition(...)` called server-side (`.catch(() => null)` for stub safety), map renders below tracking timeline only when DEPARTED-but-not-CLEARED. ETA hint shows projected arrival date.
+
+`Booking.vesselPositionTitle/Hint` added EN + AR. `VESSEL_TRACKING_PROVIDER=mock` added to `.env.example`.
+
+#### Sprint 19 — Subscriptions for Coworker + Customs Agent (mock-paid)
+Monthly subscription gates Coworker + Customs Agent quote submission. Forwarders are NOT gated (they pay platform commission per booking). Provider flag `SUBSCRIPTION_PROVIDER=mock|stripe`. Mock = one-click 30-day activation.
+
+**Schema** ([prisma/schema.prisma](prisma/schema.prisma)) — new `Subscription` model (`userId`, `role`, `tierName`, `priceUSDCents`, `currentPeriodStart/End`, `status`, `provider`, `providerSubscriptionId`, `cancelledAt`) + `SubscriptionStatus` enum (ACTIVE/EXPIRED/CANCELLED). `@@index([userId, status])` for the hot-path "active sub for user" lookup. Synced via `db push`.
+
+**Pure module** ([src/lib/subscriptions.ts](src/lib/subscriptions.ts)) — `TIERS.COWORKER` ($29/mo) + `TIERS.CUSTOMS_AGENT` ($49/mo), `tierForRole`, `isPeriodActive` (half-open [start, end), checks ACTIVE status), `nextPeriodEnd`, `daysRemaining`. 10 Vitest tests covering role gating, period boundaries, expired/cancelled rejection, day math.
+
+**Server actions** ([src/lib/subscriptions-actions.ts](src/lib/subscriptions-actions.ts)) — `getActiveSubscriptionForUser` (lazy expires past-end ACTIVE rows on read — no daily cron needed), `hasActiveSubscription`, `subscribeAction` (mock = create row with `nextPeriodEnd(now, 30)`, stripe = stub-error), `cancelSubscriptionAction`. Both revalidate `/coworker` + `/customs` roots + `/subscription` + `/rfq` paths.
+
+**Gates added** in both quote action files ([coworker/rfq/[id]/actions.ts](src/app/[locale]/(authed)/coworker/rfq/[id]/actions.ts) + [customs/rfq/[id]/actions.ts](src/app/[locale]/(authed)/customs/rfq/[id]/actions.ts)) — after onboarding check, refuse with `error: "subscription"` if not subscribed. Form components show `errSubscription` translation.
+
+**UI** — `<SubscribePanel>` + `<CancelSubscriptionForm>` ([src/components/SubscriptionPanel.tsx](src/components/SubscriptionPanel.tsx)) with `confirm()` dialog. Pages: [coworker/subscription/page.tsx](src/app/[locale]/(authed)/coworker/subscription/page.tsx) + [customs/subscription/page.tsx](src/app/[locale]/(authed)/customs/subscription/page.tsx) show active state (emerald, "Renews on {date} — {days} remaining") or subscribe form. Home pages + RFQ inbox + RFQ detail pages all show rose "activate your membership" banner/inline-block when missing. `Subscription` namespace added EN + AR. `SUBSCRIPTION_PROVIDER=mock` added to `.env.example`.
+
+**Note on session.user.role typing** — Auth.js v5 declares `session.user.role: string` in [next-auth.d.ts](src/types/next-auth.d.ts). Cast `as UserRole` at the boundary in `subscribeAction` since the JWT was minted from a known enum at sign-in.
+
+#### Sprint 20 — Cargo insurance + disputes + final polish
+Closes out the Phase-2 build. Three concerns: optional marine cargo insurance, a customer/forwarder dispute channel with admin resolution, and a final typecheck/test sweep.
+
+**Cargo insurance** — flat-rate cover on top of freight + pickup + customs. Configurable via `INSURANCE_RATE_BPS` (default 150 bps = 1.5%). Customer opts in at RFQ creation with a declared cargo value; premium snapshots onto the Booking at acceptance.
+- Schema: `Shipment.wantsInsurance` + `Shipment.cargoValueUSDCents`, `Booking.insuranceUSDCents` (default 0) + `Booking.cargoValueUSDCents`.
+- Pure module [src/lib/insurance.ts](src/lib/insurance.ts) — `computeInsuranceCents(wants, value, bps)` rounds UP so the platform never undercharges; `formatRatePercent` for disclosure copy. **7 Vitest tests**.
+- RFQ form ([NewShipmentForm.tsx](src/app/[locale]/(authed)/customer/shipments/new/NewShipmentForm.tsx)) adds an "Add cargo insurance" checkbox that reveals a `cargoValueUSD` input. `createShipmentAction` extends its Zod input + persists.
+- `acceptQuoteAction` computes `insuranceCents` and adds it to `totalUSDCents` before commission calc, storing the snapshot on the booking. Customer booking detail page shows an emerald "Insured · {premium} insurance premium (1.5% of {value})" line. EN + AR translations under `Insurance`.
+
+**Disputes** — out-of-band admin resolution model. Customer OR forwarder can open ONE dispute per booking; admin marks RESOLVED or REJECTED with a public note both parties see. Coworker / customs agent cannot raise — narrower contract, escalate via forwarder.
+- Schema: `Dispute` model (`bookingId`, `openedByUserId`, `reason`, `description`, `status`, `adminNote`, `resolvedAt`) + `DisputeStatus` + `DisputeReason` enums. `@@index([bookingId])` + `@@index([status])`.
+- Server actions [src/lib/disputes.ts](src/lib/disputes.ts) — `openDisputeAction` (party check + one-OPEN-per-booking lock), `resolveDisputeAction` (admin-only).
+- UI: [DisputePanel.tsx](src/components/DisputePanel.tsx) (server, lists existing + renders form) + [DisputeForm.tsx](src/components/DisputeForm.tsx) (client toggle-then-form with reason dropdown + 10–4000-char description). Wired into both customer + forwarder booking detail pages.
+- Admin: [admin/disputes/page.tsx](src/app/[locale]/(authed)/admin/disputes/page.tsx) with OPEN/RESOLVED/REJECTED tab filter + inline `<ResolveDisputeForm>` (single textarea, two submit buttons: "Mark RESOLVED" / "Mark REJECTED" via `name="resolution"`). Admin overview page now shows "Open disputes ({count})" quick-link.
+- EN + AR translations under `Dispute` namespace.
+
+**Final polish** — `npx tsc --noEmit` clean, `npx vitest run` 91/91. `INSURANCE_RATE_BPS=150` added to `.env.example`.
+
 ---
 
-## Remaining sprints (planned, not built)
+## Sprint log complete
 
-| # | Sprint | Status |
-|---|---|---|
-| 17 | Carrier pricing abstraction (CMA CGM + Freighty stubs, mock returns deterministic baseline rates) | pending |
-| 18 | Vessel tracking mock + simple Leaflet map display + interpolated position during DEPARTED→ARRIVED | pending |
-| 19 | Subscriptions for Coworker + Customs Agent (mock-paid, gates them from receiving bookings) | pending |
-| 20 | Cargo insurance flat % + dispute resolution + final Vitest + polish | pending |
+All 20 sprints landed end-to-end:
+1. **Sprints 1–10** (initial commit `deaec9f`): Foundation, Auth + roles, Ports + lanes, RFQ + quotes, Stripe Connect onboarding (mock), Booking + payment, Tracking + documents, Admin minimal, i18n + Arabic RTL, E2E + polish.
+2. **Sprints 11–15** (post-`deaec9f`): Coworker role, ExWorks RFQ flow, Leaflet maps + Nominatim + OSRM, Coworker quotes + multi-leg bookings, Customs Agent role, Reviews & ratings.
+3. **Sprints 16–20**: Chat, Carrier-pricing abstraction, Vessel tracking, Subscriptions, Cargo insurance + Disputes.
+
+**Test suite**: 91 Vitest tests across 12 files. Provider-flag pattern lets every external dep (`PAYMENT`, `EMAIL`, `STORAGE`, `MAP`, `CARRIER_PRICING`, `VESSEL_TRACKING`, `SUBSCRIPTION`) run in `mock` mode for offline dev.
+
+**Pre-launch checklist** (unchanged from earlier, plus): verify `INSURANCE_RATE_BPS` matches whichever underwriter the platform partners with; legal review of dispute T&Cs.
+
+#### Sprint 21 — Notifications hub (pre-design polish)
+Cross-cutting in-app notification system so designers know what event types exist before mocking the header / inbox / empty states.
+
+**Architecture: fan-out at write time.** When something happens, we insert N rows (one per recipient) so the inbox query stays a single indexed `findMany`. No fan-in at read time, no queue/worker (Sprint 24+ if scale demands).
+
+**Schema** ([prisma/schema.prisma](prisma/schema.prisma)) — new `Notification` model: `userId`, `type` (NotificationType enum), optional `bookingId`/`shipmentId`/`bodyText`/`linkPath`, `readAt`. `@@index([userId, readAt])` for the bell count (`readAt IS NULL`); `@@index([userId, createdAt])` for the page list. Synced via `db push`.
+
+8 notification types covering the events that aren't already surfaced elsewhere — chat unread stays in `ConversationRead` (no `NEW_MESSAGE` type, deliberate; would double-count):
+- `NEW_RFQ_ON_LANE` — fwd inbox
+- `NEW_QUOTE_RECEIVED` — customer received a forwarder/coworker/customs bid
+- `QUOTE_ACCEPTED` — winner's notification (fan-out to forwarder + coworker? + customs?)
+- `BOOKING_STAGE_ADVANCED`, `DOCUMENT_UPLOADED` — customer on stage/doc changes
+- `DISPUTE_OPENED`, `DISPUTE_RESOLVED` — both parties
+- `REVIEW_RECEIVED` — rated user
+
+**Module split**:
+- [src/lib/notifications.ts](src/lib/notifications.ts) — pure helpers: `createNotification` / `createNotifications` (batch via `createMany skipDuplicates`, swallows DB errors with `console.error` so notification failures never break the parent action), `getUnreadNotificationCount`, `listNotificationsForUser`.
+- [src/lib/notifications-actions.ts](src/lib/notifications-actions.ts) — `"use server"` actions: `markNotificationReadAction` (caller-owned only), `markAllNotificationsReadAction`. Both revalidate `/notifications` + the 5 role roots so the bell badge clears.
+
+**Wired into 7 existing actions** — each one stays a single function (no per-action notification middleware). Imports `createNotification`/`createNotifications` and fires after the main DB write succeeds:
+- `createShipmentAction` → fan-out to every forwarder with a matching active lane
+- `submitQuoteAction` (forwarder + coworker + customs) → notify the customer
+- `acceptQuoteAction` → notify winning forwarder + optional coworker + optional customs
+- `advanceStageAction` → notify customer
+- `uploadDocumentAction` → notify customer
+- `openDisputeAction` → notify the other booking party
+- `resolveDisputeAction` → notify both customer + forwarder
+- `submitReviewAction` → notify the rated user
+
+**UI**:
+- [NotificationBell.tsx](src/components/NotificationBell.tsx) — server component, SVG bell icon + rose badge with unread count (capped at "99+"). Wired into [(authed)/layout.tsx](src/app/[locale]/(authed)/layout.tsx) header beside the chat `UnreadBadge`. Both badges have distinct semantics — chat = unread DM messages, bell = everything else.
+- [(authed)/notifications/page.tsx](src/app/[locale]/(authed)/notifications/page.tsx) — list of last 50 with sky-50 unread highlight, clickable `<Link>` to `linkPath` if present, "Mark all read" button + auto-mark-all-on-mount client component (`MarkAllReadOnMount`, same pattern as `ChatPanel`'s `MarkAsReadOnMount` — visiting the page = "I've seen them"). Bell badge clears via revalidatePath fan-out.
+
+`Notifications` namespace added to EN + AR. No new env vars.
+
+**Why before design**: bell placement, badge styling, notification-row anatomy, empty-state copy all need a designer's eye now that the event surface is defined. Right now everything's functional but visually minimal — that's by design (Sprint 22+ pre-design polish, design pass picks up from here).
+
+#### Sprint 22 — Multi-currency display
+The `FxRate` table from Sprint 9 finally gets wired. Display-only: USD remains the canonical settlement currency (every Money column is USD cents; Stripe/Connect transact in USD). Each user picks a display currency; the app converts at render time using the latest snapshot.
+
+**No FX risk for the platform** — conversion is purely cosmetic. A rate change between page load and payment doesn't move the dollar amount being charged.
+
+**Schema** — `User.preferredCurrency String @default("USD") @db.VarChar(3)`. Synced via `db push`.
+
+**Pure module** [src/lib/fx.ts](src/lib/fx.ts):
+- `convertFromUSDCents(amountUSDCents, usdPerTarget)` — divides + rounds. Returns source amount unchanged for invalid rates (graceful no-op).
+- `formatMoney(minorUnits, currency, locale)` — `Intl.NumberFormat` with style `"currency"`, so JPY auto-drops decimals, USD gets `$`, EUR gets `€`. Fallback string for unknown codes.
+- `SUPPORTED_CURRENCIES` whitelist: USD, EUR, GBP, AED, SAR, LBP, EGP, JOD, CNY, JPY. Adding more is a one-line change.
+- `getLatestRate(currency)` — single-row DB lookup; returns 1 for USD or missing rate (renders unchanged USD amount).
+- **10 Vitest tests** covering conversion edge cases (zero, NaN, large multipliers for LBP, Intl currency formatting, JPY no-decimals, supported-currency typeguard).
+
+**Rate sourcing** [src/lib/fx-fetch.ts](src/lib/fx-fetch.ts):
+- `fetchAndPersistFxRates()` hits exchangerate.host (free, no API key) for base=USD + every supported currency, INVERTS to "USD per 1 target", upserts a row per currency for today's date.
+- Idempotent via PK `(date, currency)` — safe to re-run.
+- Surfaces fetch errors; caller (cron route / script) decides retry.
+
+**Triggers**:
+- `npm run seed:fx` ([prisma/seed-fx.ts](prisma/seed-fx.ts)) — one-shot.
+- `GET /api/cron/fx-rates` ([src/app/api/cron/fx-rates/route.ts](src/app/api/cron/fx-rates/route.ts)) — daily cron. Auth via Vercel's `Authorization: Bearer $CRON_SECRET` header OR `?key=` query. For Vercel, add to `vercel.json`:
+  ```json
+  { "crons": [{ "path": "/api/cron/fx-rates", "schedule": "0 6 * * *" }] }
+  ```
+
+**UI**:
+- [`<MoneyAmount>`](src/components/MoneyAmount.tsx) — server component. Reads session → user's `preferredCurrency` → `getLatestRate` → renders. `showUSDAside` prop appends "(\$X.XX)" so settlement amount stays visible on totals. Falls back to USD if rate is missing or currency unsupported.
+- Swapped `formatUSD` → `<MoneyAmount>` in the three highest-visibility customer surfaces: [customer/bookings/[id]/page.tsx](src/app/[locale]/(authed)/customer/bookings/[id]/page.tsx) total-paid header, [customer/shipments/[id]/page.tsx](src/app/[locale]/(authed)/customer/shipments/[id]/page.tsx) quote-comparison cards + total summary, [customer/bookings/page.tsx](src/app/[locale]/(authed)/customer/bookings/page.tsx) list. Forwarder/coworker/customs/admin pages keep raw USD — settlement-side actors should see settlement currency.
+- `/settings` page at [src/app/[locale]/(authed)/settings/](src/app/[locale]/(authed)/settings/page.tsx) — currency dropdown wired to `updatePreferredCurrencyAction`. Action revalidates all 5 role roots so the new currency takes effect without a hard reload.
+- Settings cog icon added to the (authed) layout header.
+
+**Translations** — `Settings` namespace EN + AR. No new error states (FX failures degrade to USD silently).
+
+**Env** — `CRON_SECRET` added to `.env.example` with `crypto.randomBytes(32)` generator hint.
+
+**Note on the FxRate PK** — composite `(date, currency)` was already in the schema. The upsert uses Prisma's `where: { date_currency: { ... } }` compound-key syntax. No migration needed.
+
+#### Sprint 23 — Public provider directory
+Public-facing pages so a prospective customer can browse forwarders, coworkers, and customs agents **before signing up**. No auth required.
+
+**Routes** — nested under `/providers/` with a shared layout providing a public header + 3-tab nav (forwarders / coworkers / customs):
+- [/providers/forwarders](src/app/[locale]/providers/forwarders/page.tsx) — list. Filter by origin + destination UN/LOCODE (lane match via secondary `db.lane.findMany` filter — cleaner than a clunky relational query). Sort by `ratingAvg` desc → `ratingCount` desc.
+- [/providers/forwarders/[id]](src/app/[locale]/providers/forwarders/[id]/page.tsx) — detail. Stat cards (completed bookings, active lanes, rating), full list of active lanes with transit days, sign-up CTA.
+- [/providers/coworkers](src/app/[locale]/providers/coworkers/page.tsx) + [/providers/coworkers/[id]](src/app/[locale]/providers/coworkers/[id]/page.tsx) — country filter. Detail shows vehicle / capacity / per-km rate.
+- [/providers/customs](src/app/[locale]/providers/customs/page.tsx) + [/providers/customs/[id]](src/app/[locale]/providers/customs/[id]/page.tsx) — country filter. Detail shows license number, base + doc-set fees, operating cities.
+
+**Visibility rules** — both list + detail filter `onboardingComplete: true` AND `user.suspended: false`. Suspended or not-onboarded providers 404 on direct URL — admin-suspended state must not leak.
+
+**Trust signals** — every detail page does a `db.booking.count` for completed (DELIVERED-stage) bookings/pickups/clearances for that user. Cheap, single indexed query.
+
+**Layout** [src/app/[locale]/providers/layout.tsx](src/app/[locale]/providers/layout.tsx) — public header (brand, Sign in / Sign up, or Dashboard if already authed) + tab strip. `aria-current="page"` styling on the active tab uses Tailwind 4's `aria-[current=page]:` modifier.
+
+**Cross-links**:
+- Marketing landing page ([src/app/[locale]/page.tsx](src/app/[locale]/page.tsx)) — "Or browse our forwarders, pickup coworkers, and customs agents →" link below the role CTAs.
+- Customer's quote-comparison cards ([customer/shipments/[id]/page.tsx](src/app/[locale]/(authed)/customer/shipments/[id]/page.tsx)) — forwarder name on each pending quote is now a `<Link>` to `/providers/forwarders/[id]`, opening the same public profile in a new context.
+
+`Providers` namespace added EN + AR (40+ keys for empty states, filter labels, stat labels, CTAs).
+
+**Design-handoff value** — gives designers a *third* class of UI page to lay out (next to authed dashboards and marketing landing): the **directory/profile pattern**. Three near-identical pages now exist with the same anatomy (filter bar, card grid, detail w/ stats + lists + CTA) — perfect raw material for a designer to pick a consistent treatment that the rest of the app inherits.
 
 ---
 
@@ -197,9 +348,13 @@ Models:
 - `TrackingEvent` (one row per stage transition)
 - `Document` (BL / Invoice / Packing list / Other)
 - `Review` (one per booking × rater × rated)
+- `Conversation` + `Message` + `ConversationRead` (Sprint 16 chat)
+- `Subscription` (Sprint 19 monthly membership for COWORKER + CUSTOMS_AGENT)
+- `Dispute` (Sprint 20 customer/forwarder-raised disputes, admin-resolved)
+- `Notification` (Sprint 21 in-app notifications, fan-out at write time)
 - `FxRate` (daily snapshot, not yet wired — Sprint 9-deferred)
 
-Enums: `UserRole` (CUSTOMER / FORWARDER / COWORKER / CUSTOMS_AGENT / ADMIN), `Incoterm` (FOB / EXW), `ShipmentStatus`, `QuoteStatus`, `TrackingStage`, `ContainerType`, `DocumentType`.
+Enums: `UserRole` (CUSTOMER / FORWARDER / COWORKER / CUSTOMS_AGENT / ADMIN), `Incoterm` (FOB / EXW), `ShipmentStatus`, `QuoteStatus`, `TrackingStage`, `ContainerType`, `DocumentType`, `SubscriptionStatus`, `DisputeStatus`, `DisputeReason`, `NotificationType`.
 
 VARCHAR lengths capped to fit MySQL 5.7's 1000-byte InnoDB key limit (see comments in schema).
 

@@ -8,6 +8,7 @@ import { Link } from "@/i18n/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { rankQuotes } from "@/lib/quotes";
 import { formatUSD } from "@/lib/money";
+import { MoneyAmount } from "@/components/MoneyAmount";
 import { isMock } from "@/lib/payments";
 
 import { AcceptQuoteButton } from "./AcceptQuoteButton";
@@ -108,6 +109,7 @@ export default async function ShipmentDetailPage({
       forwarderRatingCount: q.forwarder.forwarderProfile?.ratingCount ?? 0,
       carrierName: q.carrierName,
       validUntil: q.validUntil,
+      forwarderId: q.forwarderId,
       forwarderName:
         q.forwarder.forwarderProfile?.companyName ?? q.forwarder.email,
     }))
@@ -247,9 +249,12 @@ export default async function ShipmentDetailPage({
                 >
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-zinc-900">
+                      <Link
+                        href={`/providers/forwarders/${q.forwarderId}`}
+                        className="font-medium text-zinc-900 underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-600"
+                      >
                         {q.forwarderName}
-                      </span>
+                      </Link>
                       <RatingStars
                         avg={q.forwarderRating}
                         count={q.forwarderRatingCount}
@@ -276,7 +281,7 @@ export default async function ShipmentDetailPage({
                   <div className="flex items-center gap-6">
                     <div className="text-end">
                       <div className="text-2xl font-semibold text-zinc-900">
-                        {formatUSD(q.priceUSDCents)}
+                        <MoneyAmount usdCents={q.priceUSDCents} locale={locale} />
                       </div>
                       <div className="text-xs text-zinc-500">
                         {tQ("transitDays", { days: q.transitDays })}
@@ -331,7 +336,9 @@ function BookingPanel({
           <dt className="text-xs uppercase tracking-wide text-emerald-700">
             {tB("amountPaid")}
           </dt>
-          <dd className="mt-0.5 text-emerald-900">{formatUSD(totalCents)}</dd>
+          <dd className="mt-0.5 text-emerald-900">
+            <MoneyAmount usdCents={totalCents} locale={locale} showUSDAside />
+          </dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-emerald-700">

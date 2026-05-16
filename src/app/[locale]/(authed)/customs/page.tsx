@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import { Link } from "@/i18n/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { formatUSD } from "@/lib/money";
+import { getActiveSubscriptionForUser } from "@/lib/subscriptions-actions";
+import { daysRemaining } from "@/lib/subscriptions";
 
 export default async function CustomsHome({
   params,
@@ -20,6 +22,8 @@ export default async function CustomsHome({
   const user = await requireRole("CUSTOMS_AGENT", locale);
   const tC = await getTranslations({ locale, namespace: "Customs" });
   const tO = await getTranslations({ locale, namespace: "Onboarding" });
+  const tSub = await getTranslations({ locale, namespace: "Subscription" });
+  const sub = await getActiveSubscriptionForUser(user.id);
 
   const [profile, pendingCount, bookedCount] = await Promise.all([
     db.customsAgentProfile.findUnique({
@@ -70,6 +74,35 @@ export default async function CustomsHome({
           <div>
             <div className="font-medium">{tO("homeCardCta")}</div>
             <div className="text-sm">{tO("homeCardBody")}</div>
+          </div>
+          <span className="text-xl dir-arrow" />
+        </Link>
+      )}
+
+      {profile?.onboardingComplete && (
+        <Link
+          href="/customs/subscription"
+          className={
+            "mt-6 flex items-center justify-between rounded-lg border p-4 transition " +
+            (sub
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900 hover:border-emerald-300"
+              : "border-rose-300 bg-rose-50 text-rose-900 hover:border-rose-400")
+          }
+        >
+          <div>
+            <div className="font-medium">
+              {sub
+                ? `${tSub("activeBadge")} — ${sub.tierName}`
+                : tSub("homeCardCta")}
+            </div>
+            <div className="text-sm">
+              {sub
+                ? tSub("activeUntil", {
+                    date: sub.currentPeriodEnd.toISOString().slice(0, 10),
+                    days: daysRemaining(sub.currentPeriodEnd),
+                  })
+                : tSub("homeCardBody")}
+            </div>
           </div>
           <span className="text-xl dir-arrow" />
         </Link>

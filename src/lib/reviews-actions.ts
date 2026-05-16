@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { appendToRunningAverage } from "@/lib/reviews";
+import { createNotification } from "@/lib/notifications";
 
 const submitInput = z.object({
   bookingId: z.string().min(1),
@@ -164,6 +165,21 @@ export async function submitReviewAction(
     console.error("submitReviewAction failed:", e);
     return { ok: false, error: "unknown" };
   }
+
+  // Notify the rated user. Link target depends on their role.
+  const roleRoot: Record<typeof ratedRole, string> = {
+    FORWARDER: "forwarder",
+    COWORKER: "coworker",
+    CUSTOMS_AGENT: "customs",
+    CUSTOMER: "customer",
+  };
+  await createNotification({
+    userId: ratedUserId,
+    type: "REVIEW_RECEIVED",
+    bookingId,
+    bodyText: `${score}★`,
+    linkPath: `/${roleRoot[ratedRole]}/bookings/${bookingId}`,
+  });
 
   // Revalidate every page that surfaces ratings or the booking.
   revalidatePath(`/${locale}/customer/bookings/${bookingId}`);

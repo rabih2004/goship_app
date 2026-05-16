@@ -30,8 +30,10 @@ type Incoterm = "FOB" | "EXW";
 export function NewShipmentForm({ locale }: { locale: "en" | "ar" }) {
   const t = useTranslations("Shipments");
   const tInco = useTranslations("Shipments.incoterm");
+  const tIns = useTranslations("Insurance");
   const [state, action, pending] = useActionState(createShipmentAction, initialState);
   const [incoterm, setIncoterm] = useState<Incoterm>("FOB");
+  const [wantsInsurance, setWantsInsurance] = useState(false);
   const fe = state.fieldErrors ?? {};
 
   const errMessage =
@@ -212,6 +214,38 @@ export function NewShipmentForm({ locale }: { locale: "en" | "ar" }) {
           <span className="block text-xs text-zinc-500">
             {t("needsCustomsClearanceHint")}
           </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-white p-3 text-sm">
+        <input
+          type="checkbox"
+          name="wantsInsurance"
+          checked={wantsInsurance}
+          onChange={(e) => setWantsInsurance(e.target.checked)}
+          className="mt-1 h-4 w-4 rounded border-zinc-300"
+        />
+        <span className="flex-1">
+          <span className="font-medium text-zinc-900">{tIns("optInLabel")}</span>
+          <span className="block text-xs text-zinc-500">
+            {tIns("optInHint", { rate: "1.5%" })}
+          </span>
+          {wantsInsurance && (
+            <div className="mt-3">
+              <Label htmlFor="cargoValueUSD">{tIns("cargoValueUSD")}</Label>
+              <Input
+                id="cargoValueUSD"
+                name="cargoValueUSD"
+                type="number"
+                step="0.01"
+                min={0}
+                required={wantsInsurance}
+                placeholder="25000"
+                invalid={!!fe.cargoValueUSD}
+              />
+              <FieldError>{fe.cargoValueUSD}</FieldError>
+            </div>
+          )}
         </span>
       </label>
 

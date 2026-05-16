@@ -85,6 +85,14 @@ function Landing({ isAuthed }: { isAuthed: boolean }) {
               {t("ctaCoworker")}
             </Link>
           </div>
+          <p className="mt-6 text-sm text-zinc-500">
+            <Link
+              href="/providers/forwarders"
+              className="text-[var(--brand)] underline"
+            >
+              {t("browseProviders")}
+            </Link>
+          </p>
         </section>
 
         <section className="mx-auto max-w-6xl px-6 pb-20">

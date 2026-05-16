@@ -12,6 +12,7 @@ import {
   suggestedPickupPriceCents,
 } from "@/lib/coworker-pricing";
 import { formatUSD } from "@/lib/money";
+import { hasActiveSubscription } from "@/lib/subscriptions-actions";
 
 import { PickupQuoteForm } from "./PickupQuoteForm";
 
@@ -27,6 +28,8 @@ export default async function CoworkerRfqDetailPage({
   const user = await requireRole("COWORKER", locale);
   const tR = await getTranslations({ locale, namespace: "CoworkerRfq" });
   const tS = await getTranslations({ locale, namespace: "Shipments" });
+  const tSub = await getTranslations({ locale, namespace: "Subscription" });
+  const subscribed = await hasActiveSubscription(user.id);
 
   const [profile, shipment, existing] = await Promise.all([
     db.coworkerProfile.findUnique({
@@ -169,6 +172,13 @@ export default async function CoworkerRfqDetailPage({
           className="block rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 hover:bg-amber-100"
         >
           {tR("completeOnboardingFirst")}
+        </Link>
+      ) : !subscribed ? (
+        <Link
+          href="/coworker/subscription"
+          className="block rounded-md border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900 hover:bg-rose-100"
+        >
+          {tSub("rfqLockedHint")}
         </Link>
       ) : (
         <PickupQuoteForm

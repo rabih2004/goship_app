@@ -7,6 +7,9 @@ import { db } from "@/lib/db";
 import { Link } from "@/i18n/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
 
+import { getBaselineRate } from "@/lib/carrier-pricing";
+import { formatUSD } from "@/lib/money";
+
 import { QuoteForm } from "./QuoteForm";
 
 export default async function RfqDetailPage({
@@ -26,12 +29,26 @@ export default async function RfqDetailPage({
   const shipment = await db.shipment.findUnique({
     where: { id },
     include: {
-      originPort: { select: { name: true, unlocode: true } },
-      destinationPort: { select: { name: true, unlocode: true } },
+      originPort: { select: { name: true, unlocode: true, lat: true, lng: true } },
+      destinationPort: { select: { name: true, unlocode: true, lat: true, lng: true } },
     },
   });
 
   if (!shipment || shipment.status !== "RFQ_OPEN") notFound();
+
+  const baseline = await getBaselineRate({
+    origin: {
+      unlocode: shipment.originPort.unlocode,
+      lat: shipment.originPort.lat,
+      lng: shipment.originPort.lng,
+    },
+    destination: {
+      unlocode: shipment.destinationPort.unlocode,
+      lat: shipment.destinationPort.lat,
+      lng: shipment.destinationPort.lng,
+    },
+    containerType: shipment.containerType,
+  }).catch(() => null); // never let a stub bring down the page
 
   const lane = await db.lane.findFirst({
     where: {
@@ -113,6 +130,25 @@ export default async function RfqDetailPage({
         {t("quoteFormTitle")}
       </h2>
 
+      {baseline && !existing && onboardingComplete && (
+        <div className="mb-4 rounded-md border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+          <div className="text-xs font-medium uppercase tracking-wide text-sky-700">
+            {t("baselineTitle")}
+          </div>
+          <div className="mt-1">
+            {t.rich("baselineBody", {
+              price: formatUSD(baseline.priceUSDCents),
+              transit: baseline.transitDays,
+              carrier: baseline.carrierName,
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
+          </div>
+          <div className="mt-1 text-xs text-sky-700">
+            {t("baselineSource", { source: baseline.source })}
+          </div>
+        </div>
+      )}
+
       {existing ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           {t("alreadyQuoted")}
@@ -126,7 +162,19 @@ export default async function RfqDetailPage({
           <div className="text-xs text-amber-800">{tO("homeCardBody")}</div>
         </Link>
       ) : (
-        <QuoteForm shipmentId={shipment.id} locale={locale} />
+        <QuoteForm
+          shipmentId={shipment.id}
+          locale={locale}
+          defaults={
+            baseline
+              ? {
+                  priceUSD: (baseline.priceUSDCents / 100).toFixed(2),
+                  transitDays: baseline.transitDays,
+                  carrierName: baseline.carrierName,
+                }
+              : undefined
+          }
+        />
       )}
     </div>
   );

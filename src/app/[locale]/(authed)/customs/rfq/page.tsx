@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/guards";
 import { db } from "@/lib/db";
 import { Link } from "@/i18n/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
+import { hasActiveSubscription } from "@/lib/subscriptions-actions";
 
 export default async function CustomsRfqInboxPage({
   params,
@@ -25,6 +26,9 @@ export default async function CustomsRfqInboxPage({
     select: { countryCode: true, onboardingComplete: true },
   });
   if (!profile) notFound();
+
+  const subscribed = await hasActiveSubscription(user.id);
+  const tSub = await getTranslations({ locale, namespace: "Subscription" });
 
   const shipments = await db.shipment.findMany({
     where: {
@@ -56,6 +60,16 @@ export default async function CustomsRfqInboxPage({
           className="mb-6 flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
         >
           <span>{tR("completeOnboardingFirst")}</span>
+          <span className="dir-arrow" />
+        </Link>
+      )}
+
+      {profile.onboardingComplete && !subscribed && (
+        <Link
+          href="/customs/subscription"
+          className="mb-6 flex items-center justify-between rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900"
+        >
+          <span>{tSub("rfqLockedHint")}</span>
           <span className="dir-arrow" />
         </Link>
       )}

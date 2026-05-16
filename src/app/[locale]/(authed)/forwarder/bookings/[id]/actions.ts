@@ -8,6 +8,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { storage } from "@/lib/storage";
 import { sendEmail, tplStageChanged, tplDocumentUploaded } from "@/lib/email";
+import { createNotification } from "@/lib/notifications";
 
 const STAGES = ["BOOKED", "LOADED", "DEPARTED", "ARRIVED", "CLEARED", "DELIVERED"] as const;
 type Stage = (typeof STAGES)[number];
@@ -45,6 +46,7 @@ export async function advanceStageAction(
     select: {
       id: true,
       forwarderId: true,
+      customerId: true,
       bookingNumber: true,
       shipmentId: true,
       customer: { select: { email: true } },
@@ -108,6 +110,14 @@ export async function advanceStageAction(
       trackingUrl: `${process.env.AUTH_URL ?? "http://localhost:3000"}/${locale}/customer/bookings/${booking.id}`,
     }),
   }).catch((err) => console.error("stage email failed:", err));
+
+  await createNotification({
+    userId: booking.customerId,
+    type: "BOOKING_STAGE_ADVANCED",
+    bookingId: booking.id,
+    bodyText: `${booking.bookingNumber} → ${nextStage}`,
+    linkPath: `/customer/bookings/${booking.id}`,
+  });
 
   revalidatePath(`/${locale}/forwarder/bookings/${booking.id}`);
   revalidatePath(`/${locale}/forwarder/bookings`);
@@ -176,6 +186,7 @@ export async function uploadDocumentAction(
     select: {
       id: true,
       forwarderId: true,
+      customerId: true,
       bookingNumber: true,
       customer: { select: { email: true } },
     },
@@ -217,6 +228,14 @@ export async function uploadDocumentAction(
       trackingUrl: `${process.env.AUTH_URL ?? "http://localhost:3000"}/${locale}/customer/bookings/${booking.id}`,
     }),
   }).catch((err) => console.error("doc email failed:", err));
+
+  await createNotification({
+    userId: booking.customerId,
+    type: "DOCUMENT_UPLOADED",
+    bookingId: booking.id,
+    bodyText: `${type} · ${booking.bookingNumber}`,
+    linkPath: `/customer/bookings/${booking.id}`,
+  });
 
   revalidatePath(`/${locale}/forwarder/bookings/${booking.id}`);
   revalidatePath(`/${locale}/customer/bookings/${booking.id}`);

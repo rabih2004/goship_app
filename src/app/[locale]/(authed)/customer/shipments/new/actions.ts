@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { createNotifications } from "@/lib/notifications";
 
 const baseInput = z.object({
   originPortUnlocode: z.string().regex(/^[A-Z]{5,10}$/),
@@ -17,6 +18,11 @@ const baseInput = z.object({
     .union([z.literal("on"), z.literal("true"), z.literal("")])
     .transform((v) => v === "on" || v === "true")
     .optional(),
+  wantsInsurance: z
+    .union([z.literal("on"), z.literal("true"), z.literal("")])
+    .transform((v) => v === "on" || v === "true")
+    .optional(),
+  cargoValueUSD: z.coerce.number().min(0).max(10_000_000).optional(),
   locale: z.enum(["en", "ar"]).default("en"),
 });
 
@@ -88,6 +94,11 @@ export async function createShipmentAction(
       incoterm: data.incoterm,
       status: "RFQ_OPEN",
       needsCustomsClearance: data.needsCustomsClearance ?? false,
+      wantsInsurance: data.wantsInsurance ?? false,
+      cargoValueUSDCents:
+        data.wantsInsurance && data.cargoValueUSD
+          ? Math.round(data.cargoValueUSD * 100)
+          : null,
       ...(data.incoterm === "EXW"
         ? {
             factoryAddressLine: data.factoryAddressLine,
@@ -101,6 +112,29 @@ export async function createShipmentAction(
     },
     select: { id: true },
   });
+
+  // Notify every forwarder with an active lane matching origin → destination
+  // that a fresh RFQ landed in their inbox.
+  const matchingLanes = await db.lane.findMany({
+    where: {
+      active: true,
+      originPortUnlocode: data.originPortUnlocode,
+      destinationPortUnlocode: data.destinationPortUnlocode,
+    },
+    select: { forwarderId: true },
+  });
+  if (matchingLanes.length > 0) {
+    const route = `${data.originPortUnlocode} → ${data.destinationPortUnlocode}`;
+    await createNotifications(
+      matchingLanes.map((l) => ({
+        userId: l.forwarderId,
+        type: "NEW_RFQ_ON_LANE" as const,
+        shipmentId: shipment.id,
+        bodyText: route,
+        linkPath: `/forwarder/rfq/${shipment.id}`,
+      }))
+    );
+  }
 
   redirect(`/${locale}/customer/shipments/${shipment.id}`);
 }

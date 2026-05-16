@@ -8,6 +8,7 @@ import { Link } from "@/i18n/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { haversineKm, roundKm } from "@/lib/geo";
 import { isWithinServiceRadius } from "@/lib/coworker-pricing";
+import { hasActiveSubscription } from "@/lib/subscriptions-actions";
 
 export default async function CoworkerRfqInboxPage({
   params,
@@ -34,6 +35,8 @@ export default async function CoworkerRfqInboxPage({
   if (!profile) notFound();
 
   const onboardingComplete = profile.onboardingComplete;
+  const subscribed = await hasActiveSubscription(user.id);
+  const tSub = await getTranslations({ locale, namespace: "Subscription" });
   const center =
     profile.serviceCenterLat != null && profile.serviceCenterLng != null
       ? { lat: profile.serviceCenterLat, lng: profile.serviceCenterLng }
@@ -109,6 +112,16 @@ export default async function CoworkerRfqInboxPage({
           className="mb-6 flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
         >
           <span>{tR("completeOnboardingFirst")}</span>
+          <span className="dir-arrow" />
+        </Link>
+      )}
+
+      {onboardingComplete && !subscribed && (
+        <Link
+          href="/coworker/subscription"
+          className="mb-6 flex items-center justify-between rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900"
+        >
+          <span>{tSub("rfqLockedHint")}</span>
           <span className="dir-arrow" />
         </Link>
       )}

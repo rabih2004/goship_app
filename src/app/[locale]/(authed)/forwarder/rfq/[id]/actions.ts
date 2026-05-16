@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { dollarsToCents } from "@/lib/money";
+import { createNotification } from "@/lib/notifications";
 
 const submitInput = z.object({
   shipmentId: z.string().min(1),
@@ -63,6 +64,7 @@ export async function submitQuoteAction(
     where: { id: shipmentId },
     select: {
       status: true,
+      customerId: true,
       originPortUnlocode: true,
       destinationPortUnlocode: true,
     },
@@ -108,6 +110,14 @@ export async function submitQuoteAction(
     }
     return { ok: false, error: "unknown" };
   }
+
+  await createNotification({
+    userId: shipment.customerId,
+    type: "NEW_QUOTE_RECEIVED",
+    shipmentId,
+    bodyText: `${shipment.originPortUnlocode} → ${shipment.destinationPortUnlocode} · ${carrierName}`,
+    linkPath: `/customer/shipments/${shipmentId}`,
+  });
 
   redirect(`/${locale}/forwarder/rfq`);
 }

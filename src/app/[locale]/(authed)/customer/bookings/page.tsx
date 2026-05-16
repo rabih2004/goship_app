@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/guards";
 import { db } from "@/lib/db";
 import { Link } from "@/i18n/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
-import { formatUSD } from "@/lib/money";
+import { MoneyAmount } from "@/components/MoneyAmount";
 
 export default async function CustomerBookingsPage({
   params,
@@ -96,7 +96,7 @@ export default async function CustomerBookingsPage({
                     </span>
                     <div className="text-end">
                       <div className="text-base font-semibold text-zinc-900">
-                        {formatUSD(b.totalUSDCents)}
+                        <MoneyAmount usdCents={b.totalUSDCents} locale={locale} />
                       </div>
                       <div className="text-xs text-zinc-500">
                         {b.createdAt.toISOString().slice(0, 10)}

@@ -34,17 +34,19 @@ export function CustomsQuoteForm({
   const errMsg =
     state.error === "onboarding"
       ? t("errOnboarding")
-      : state.error === "wrongCountry"
-        ? t("errWrongCountry")
-        : state.error === "duplicate"
-          ? t("errDuplicate")
-          : state.error === "shipmentNotOpen"
-            ? t("errShipmentNotOpen")
-            : state.error === "noClearanceRequested"
-              ? t("errNoClearanceRequested")
-              : state.error
-                ? t("errUnknown")
-                : null;
+      : state.error === "subscription"
+        ? t("errSubscription")
+        : state.error === "wrongCountry"
+          ? t("errWrongCountry")
+          : state.error === "duplicate"
+            ? t("errDuplicate")
+            : state.error === "shipmentNotOpen"
+              ? t("errShipmentNotOpen")
+              : state.error === "noClearanceRequested"
+                ? t("errNoClearanceRequested")
+                : state.error
+                  ? t("errUnknown")
+                  : null;
 
   return (
     <form action={action} className="flex flex-col gap-4">

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { Link } from "@/i18n/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { formatUSD } from "@/lib/money";
+import { hasActiveSubscription } from "@/lib/subscriptions-actions";
 
 import { CustomsQuoteForm } from "./CustomsQuoteForm";
 
@@ -22,6 +23,8 @@ export default async function CustomsRfqDetailPage({
   const user = await requireRole("CUSTOMS_AGENT", locale);
   const tR = await getTranslations({ locale, namespace: "CustomsRfq" });
   const tS = await getTranslations({ locale, namespace: "Shipments" });
+  const tSub = await getTranslations({ locale, namespace: "Subscription" });
+  const subscribed = await hasActiveSubscription(user.id);
 
   const [profile, shipment, existing] = await Promise.all([
     db.customsAgentProfile.findUnique({
@@ -123,6 +126,13 @@ export default async function CustomsRfqDetailPage({
           className="block rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 hover:bg-amber-100"
         >
           {tR("completeOnboardingFirst")}
+        </Link>
+      ) : !subscribed ? (
+        <Link
+          href="/customs/subscription"
+          className="block rounded-md border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900 hover:bg-rose-100"
+        >
+          {tSub("rfqLockedHint")}
         </Link>
       ) : (
         <CustomsQuoteForm

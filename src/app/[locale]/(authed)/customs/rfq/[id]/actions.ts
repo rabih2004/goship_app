@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { hasActiveSubscription } from "@/lib/subscriptions-actions";
+import { createNotification } from "@/lib/notifications";
 
 const submitInput = z.object({
   shipmentId: z.string().min(1),
@@ -22,6 +24,7 @@ export type SubmitCustomsQuoteState = {
     | "auth"
     | "validation"
     | "onboarding"
+    | "subscription"
     | "shipmentNotFound"
     | "shipmentNotOpen"
     | "wrongCountry"
@@ -58,13 +61,18 @@ export async function submitCustomsQuoteAction(
   });
   if (!profile?.onboardingComplete) return { ok: false, error: "onboarding" };
 
+  if (!(await hasActiveSubscription(session.user.id))) {
+    return { ok: false, error: "subscription" };
+  }
+
   const shipment = await db.shipment.findUnique({
     where: { id: shipmentId },
     select: {
       id: true,
       status: true,
+      customerId: true,
       needsCustomsClearance: true,
-      destinationPort: { select: { country: true } },
+      destinationPort: { select: { country: true, unlocode: true, name: true } },
     },
   });
   if (!shipment) return { ok: false, error: "shipmentNotFound" };
@@ -101,6 +109,14 @@ export async function submitCustomsQuoteAction(
     console.error("submitCustomsQuoteAction failed:", e);
     return { ok: false, error: "unknown" };
   }
+
+  await createNotification({
+    userId: shipment.customerId,
+    type: "NEW_QUOTE_RECEIVED",
+    shipmentId: shipment.id,
+    bodyText: `Customs · ${shipment.destinationPort.name} (${shipment.destinationPort.unlocode})`,
+    linkPath: `/customer/shipments/${shipment.id}`,
+  });
 
   revalidatePath(`/${locale}/customs/rfq`);
   revalidatePath(`/${locale}/customs/rfq/${shipment.id}`);

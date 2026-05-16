@@ -15,9 +15,15 @@ const initialState: SubmitQuoteState = { ok: false };
 export function QuoteForm({
   shipmentId,
   locale,
+  defaults,
 }: {
   shipmentId: string;
   locale: "en" | "ar";
+  defaults?: {
+    priceUSD: string;
+    transitDays: number;
+    carrierName: string;
+  };
 }) {
   const t = useTranslations("Quotes");
   const [state, action, pending] = useActionState(submitQuoteAction, initialState);
@@ -54,6 +60,7 @@ export function QuoteForm({
             min="1"
             required
             placeholder="3200"
+            defaultValue={defaults?.priceUSD}
             invalid={!!fe.priceUSD}
           />
           <FieldError>{fe.priceUSD}</FieldError>
@@ -68,6 +75,7 @@ export function QuoteForm({
             max={180}
             required
             placeholder="18"
+            defaultValue={defaults?.transitDays}
             invalid={!!fe.transitDays}
           />
           <FieldError>{fe.transitDays}</FieldError>
@@ -82,6 +90,7 @@ export function QuoteForm({
             name="carrierName"
             required
             placeholder="Hapag-Lloyd"
+            defaultValue={defaults?.carrierName}
             invalid={!!fe.carrierName}
           />
           <FieldError>{fe.carrierName}</FieldError>

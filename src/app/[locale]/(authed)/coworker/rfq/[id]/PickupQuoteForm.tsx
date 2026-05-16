@@ -36,15 +36,17 @@ export function PickupQuoteForm({
   const errMsg =
     state.error === "onboarding"
       ? t("errOnboarding")
-      : state.error === "outOfRadius"
-        ? t("errOutOfRadius")
-        : state.error === "duplicate"
-          ? t("errDuplicate")
-          : state.error === "shipmentNotOpen"
-            ? t("errShipmentNotOpen")
-            : state.error
-              ? t("errUnknown")
-              : null;
+      : state.error === "subscription"
+        ? t("errSubscription")
+        : state.error === "outOfRadius"
+          ? t("errOutOfRadius")
+          : state.error === "duplicate"
+            ? t("errDuplicate")
+            : state.error === "shipmentNotOpen"
+              ? t("errShipmentNotOpen")
+              : state.error
+                ? t("errUnknown")
+                : null;
 
   return (
     <form action={action} className="flex flex-col gap-4">

@@ -48,6 +48,8 @@ export default async function AdminHome({
     }),
   ]);
 
+  const openDisputes = await db.dispute.count({ where: { status: "OPEN" } });
+
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-12">
       <h1 className="mb-1 text-2xl font-semibold text-zinc-900">{t("overviewTitle")}</h1>
@@ -99,6 +101,11 @@ export default async function AdminHome({
           <li>
             <Link href="/admin/users?role=ADMIN" className="text-[var(--brand)] underline">
               → {t("linkAdmins")}
+            </Link>
+          </li>
+          <li>
+            <Link href="/admin/disputes" className="text-[var(--brand)] underline">
+              → {t("linkDisputes", { count: openDisputes })}
             </Link>
           </li>
         </ul>

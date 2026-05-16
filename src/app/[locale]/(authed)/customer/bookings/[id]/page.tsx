@@ -10,6 +10,10 @@ import { formatUSD } from "@/lib/money";
 import { isMock } from "@/lib/payments";
 import { ReviewPanel } from "@/components/ReviewPanel";
 import { ChatPanel } from "@/components/ChatPanel";
+import { MoneyAmount } from "@/components/MoneyAmount";
+import { VesselMap } from "@/components/VesselMap";
+import { getVesselPosition } from "@/lib/vessel-tracking";
+import { DisputePanel } from "@/components/DisputePanel";
 
 const STAGES = ["BOOKED", "LOADED", "DEPARTED", "ARRIVED", "CLEARED", "DELIVERED"] as const;
 type Stage = (typeof STAGES)[number];
@@ -29,6 +33,7 @@ export default async function CustomerBookingDetailPage({
   const tB = await getTranslations({ locale, namespace: "Booking" });
   const tS = await getTranslations({ locale, namespace: "Shipments" });
   const tD = await getTranslations({ locale, namespace: "Documents" });
+  const tIns = await getTranslations({ locale, namespace: "Insurance" });
 
   const sp = await searchParams;
   const justBooked = sp.just_booked === "1";
@@ -43,8 +48,8 @@ export default async function CustomerBookingDetailPage({
           readyDate: true,
           incoterm: true,
           cargoDescription: true,
-          originPort: { select: { name: true, unlocode: true } },
-          destinationPort: { select: { name: true, unlocode: true } },
+          originPort: { select: { name: true, unlocode: true, lat: true, lng: true } },
+          destinationPort: { select: { name: true, unlocode: true, lat: true, lng: true } },
         },
       },
       forwarder: {
@@ -108,6 +113,22 @@ export default async function CustomerBookingDetailPage({
   const currentStage =
     booking.trackingEvents[booking.trackingEvents.length - 1]?.stage ?? "BOOKED";
 
+  const vesselPosition = await getVesselPosition({
+    origin: {
+      lat: booking.shipment.originPort.lat,
+      lng: booking.shipment.originPort.lng,
+    },
+    destination: {
+      lat: booking.shipment.destinationPort.lat,
+      lng: booking.shipment.destinationPort.lng,
+    },
+    events: booking.trackingEvents.map((e) => ({
+      stage: e.stage,
+      occurredAt: e.occurredAt,
+    })),
+    transitDays: booking.quote.transitDays,
+  }).catch(() => null);
+
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-12">
       <div className="mb-6 flex items-center justify-between">
@@ -147,7 +168,11 @@ export default async function CustomerBookingDetailPage({
 
         <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-3">
           <Field label={tB("amountPaid")}>
-            {formatUSD(booking.totalUSDCents)}
+            <MoneyAmount
+              usdCents={booking.totalUSDCents}
+              locale={locale}
+              showUSDAside
+            />
           </Field>
           <Field label={tB("paidAt")}>
             {booking.paidAt
@@ -162,6 +187,17 @@ export default async function CustomerBookingDetailPage({
           <Field label={tB("transitDays")}>{booking.quote.transitDays}</Field>
           <Field label="INCOTERM">{booking.shipment.incoterm}</Field>
         </dl>
+
+        {booking.insuranceUSDCents > 0 && booking.cargoValueUSDCents && (
+          <div className="mt-6 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+            <span className="font-medium">{tIns("insured")}</span> ·{" "}
+            {tIns("premiumLine", {
+              premium: formatUSD(booking.insuranceUSDCents),
+              rate: "1.5%",
+              value: formatUSD(booking.cargoValueUSDCents),
+            })}
+          </div>
+        )}
       </div>
 
       <h2 className="mt-10 mb-3 text-base font-medium text-zinc-900">
@@ -209,6 +245,44 @@ export default async function CustomerBookingDetailPage({
       </ol>
 
       <p className="mt-4 text-xs text-zinc-500">{tB("trackingHint")}</p>
+
+      {vesselPosition &&
+        booking.shipment.originPort.lat != null &&
+        booking.shipment.originPort.lng != null &&
+        booking.shipment.destinationPort.lat != null &&
+        booking.shipment.destinationPort.lng != null && (
+          <div className="mt-6">
+            <h3 className="mb-2 text-sm font-medium text-zinc-900">
+              {tB("vesselPositionTitle")}
+            </h3>
+            <VesselMap
+              origin={{
+                lat: booking.shipment.originPort.lat,
+                lng: booking.shipment.originPort.lng,
+                name: booking.shipment.originPort.name,
+                unlocode: booking.shipment.originPort.unlocode,
+              }}
+              destination={{
+                lat: booking.shipment.destinationPort.lat,
+                lng: booking.shipment.destinationPort.lng,
+                name: booking.shipment.destinationPort.name,
+                unlocode: booking.shipment.destinationPort.unlocode,
+              }}
+              vessel={{
+                lat: vesselPosition.lat,
+                lng: vesselPosition.lng,
+                fraction: vesselPosition.fraction,
+              }}
+            />
+            <p className="mt-2 text-xs text-zinc-500">
+              {tB("vesselPositionHint", {
+                eta: new Date(vesselPosition.etaMs)
+                  .toISOString()
+                  .slice(0, 10),
+              })}
+            </p>
+          </div>
+        )}
 
       <h2 className="mt-10 mb-3 text-base font-medium text-zinc-900">
         {tD("title")}
@@ -263,6 +337,8 @@ export default async function CustomerBookingDetailPage({
         currentUserId={user.id}
         locale={locale}
       />
+
+      <DisputePanel bookingId={booking.id} locale={locale} />
 
       <ReviewPanel
         bookingId={booking.id}
