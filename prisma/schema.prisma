@@ -53,6 +53,8 @@ model User {
   uploadedDocuments   Document[]
   subscriptions       Subscription[]
   notifications       Notification[]
+
+  @@map("user")
 }
 
 model Account {
@@ -72,6 +74,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@map("account")
 }
 
 model Session {
@@ -80,6 +83,8 @@ model Session {
   userId       String                          @db.VarChar(30)
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
 }
 
 model VerificationToken {
@@ -88,6 +93,7 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+  @@map("verification_token")
 }
 
 // =====================================================================
@@ -108,6 +114,8 @@ model ForwarderProfile {
 
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   lanes Lane[]
+
+  @@map("forwarder_profile")
 }
 
 model CustomsAgentProfile {
@@ -128,6 +136,7 @@ model CustomsAgentProfile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([countryCode])
+  @@map("customs_agent_profile")
 }
 
 model CoworkerProfile {
@@ -152,6 +161,7 @@ model CoworkerProfile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([countryCode])
+  @@map("coworker_profile")
 }
 
 model Lane {
@@ -169,6 +179,7 @@ model Lane {
 
   @@unique([forwarderId, originPortUnlocode, destinationPortUnlocode])
   @@index([originPortUnlocode, destinationPortUnlocode])
+  @@map("lane")
 }
 
 model Port {
@@ -185,6 +196,7 @@ model Port {
 
   @@index([country])
   @@index([name])
+  @@map("port")
 }
 
 model Shipment {
@@ -224,6 +236,7 @@ model Shipment {
   @@index([status])
   @@index([originPortUnlocode, destinationPortUnlocode])
   @@index([customerId])
+  @@map("shipment")
 }
 
 model CustomsQuote {
@@ -243,6 +256,7 @@ model CustomsQuote {
 
   @@unique([shipmentId, customsAgentId])
   @@index([status])
+  @@map("customs_quote")
 }
 
 model CoworkerQuote {
@@ -264,6 +278,7 @@ model CoworkerQuote {
 
   @@unique([shipmentId, coworkerId])
   @@index([status])
+  @@map("coworker_quote")
 }
 
 model Quote {
@@ -283,6 +298,7 @@ model Quote {
 
   @@unique([shipmentId, forwarderId])
   @@index([status])
+  @@map("quote")
 }
 
 model Booking {
@@ -323,6 +339,8 @@ model Booking {
   reviews        Review[]
   conversation   Conversation?
   disputes       Dispute[]
+
+  @@map("booking")
 }
 
 // Customer/forwarder-raised dispute on a booking. Out-of-band resolution by
@@ -344,6 +362,7 @@ model Dispute {
 
   @@index([bookingId])
   @@index([status])
+  @@map("dispute")
 }
 
 // One conversation per booking. All booking parties (customer + forwarder
@@ -358,6 +377,8 @@ model Conversation {
   booking  Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   messages Message[]
   reads    ConversationRead[]
+
+  @@map("conversation")
 }
 
 model Message {
@@ -371,6 +392,7 @@ model Message {
   sender       User         @relation("MessagesAuthored", fields: [senderId], references: [id])
 
   @@index([conversationId, createdAt])
+  @@map("message")
 }
 
 // Per-user "last read at" pointer. Unread count = messages newer than this.
@@ -383,6 +405,7 @@ model ConversationRead {
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([conversationId, userId])
+  @@map("conversation_read")
 }
 
 model Review {
@@ -402,6 +425,7 @@ model Review {
   // One review per (booking, rater→rated) pair — enforces "no double-reviewing".
   @@unique([bookingId, raterUserId, ratedUserId])
   @@index([ratedUserId])
+  @@map("review")
 }
 
 model TrackingEvent {
@@ -416,6 +440,7 @@ model TrackingEvent {
   createdBy User    @relation(fields: [createdById], references: [id])
 
   @@index([bookingId, occurredAt])
+  @@map("tracking_event")
 }
 
 model Document {
@@ -433,6 +458,7 @@ model Document {
   uploadedBy User    @relation(fields: [uploadedById], references: [id])
 
   @@index([bookingId])
+  @@map("document")
 }
 
 // In-app notifications. One row per (user, event) — fan-out at write time
