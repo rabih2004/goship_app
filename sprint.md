@@ -331,6 +331,56 @@ Public-facing pages so a prospective customer can browse forwarders, coworkers, 
 
 **Design-handoff value** — gives designers a *third* class of UI page to lay out (next to authed dashboards and marketing landing): the **directory/profile pattern**. Three near-identical pages now exist with the same anatomy (filter bar, card grid, detail w/ stats + lists + CTA) — perfect raw material for a designer to pick a consistent treatment that the rest of the app inherits.
 
+#### Sprint 24 — Senior design pass
+Branding + design system overhaul. All 101 tests still pass, typecheck clean. Acting as a senior web designer:
+
+**Brand foundation** ([src/app/globals.css](src/app/globals.css), [src/lib/brand.ts](src/lib/brand.ts)):
+- Full perceptually-uniform color scale `--brand-50` → `--brand-950` anchored on `--brand-600: #225cff` (was `#0f766e` teal). `--brand` alias keeps all 116 existing `var(--brand)` callsites green.
+- Semantic tokens: `--success`, `--warn`, `--danger`, `--info`, surface tokens (`--surface`, `--surface-muted`, `--border`), role accent tokens (`--role-customer/forwarder/coworker/customs/admin`).
+- Brand name now from `NEXT_PUBLIC_BRAND_NAME` env (default "GoShip") → white-label = one .env change.
+- 4 hardcoded `#0f766e` literals in Leaflet map components swapped to brand blue.
+
+**Logo / favicon**:
+- [public/brand/logo.svg](public/brand/logo.svg) + [logo-mark.svg](public/brand/logo-mark.svg) — ship-with-repo SVG fallbacks (stacked-container ship silhouette).
+- User drops `logo.png` / `logo-mark.png` / `logo-light.png` into `public/brand/` to override (BrandLogo picks PNG-first via SOURCES order in [BrandLogo.tsx](src/components/BrandLogo.tsx)).
+- [src/app/icon.svg](src/app/icon.svg) — Next 16 auto-serves at every favicon size from this single SVG.
+
+**New primitives** ([src/components/](src/components/)):
+- `BrandLogo`, `Header` (server, role-aware nav + auth/public variants), `UserMenu` (client dropdown), `MobileNav` (client drawer, slides inline-end so RTL flips automatically), `Avatar` (image-or-initials with role-colored ring), `AvatarUpload` (drag-or-click, 2MB + jpg/png/webp), `Footer`, `LocaleSwitch`, `Card` + `CardHeader`, `EmptyState`.
+- Refreshed `Button` (brand-600 hover, spinner SVG instead of "…") and `Input` (brand-300 focus ring, red invalid state).
+
+**Avatar / company-logo storage** ([src/lib/avatars.ts](src/lib/avatars.ts), [src/lib/avatars-actions.ts](src/lib/avatars-actions.ts), [src/app/api/avatars/[...path]/route.ts](src/app/api/avatars/[...path]/route.ts)):
+- Schema: `ForwarderProfile.logoUrl` + `CoworkerProfile.logoUrl` + `CustomsAgentProfile.logoUrl` added. `User.image` was already there. Synced via `db push`.
+- Reuses `src/lib/storage.ts` adapter — mock writes to `.uploads/avatars/`, s3 uploads to R2.
+- Mock URL pattern `/api/avatars/<key>` cached `public, immutable` (immutable per UUID).
+- Action routes the URL to the correct field by role (CUSTOMER/ADMIN → `User.image`, others → profile `logoUrl`).
+- Wired into all four profile pages (customer page is new at [customer/profile/page.tsx](src/app/[locale]/(authed)/customer/profile/page.tsx)).
+
+**Header refactor** ([src/components/Header.tsx](src/components/Header.tsx) + [MobileNav.tsx](src/components/MobileNav.tsx) + [UserMenu.tsx](src/components/UserMenu.tsx) + [nav-links.ts](src/components/nav-links.ts)):
+- Old (authed) layout had 7 inline header elements (logo + bell + chat-badge + email + role chip + settings cog + sign-out) — mobile-hostile.
+- New: BrandLogo + role-aware desktop nav (3-5 links per role) + bell + chat badge + UserMenu dropdown OR MobileNav hamburger drawer on `<lg` breakpoint.
+- Drawer slides from inline-end, which means it auto-flips for RTL.
+- Single `<Header>` component used by (authed) layout (variant=authed), providers layout (variant=public), marketing landing, sign-in, sign-up.
+
+**Imagery + redesigned hero pages**:
+- Landing ([src/app/[locale]/page.tsx](src/app/[locale]/page.tsx)) — full-bleed hero with brand-gradient bg + optional `hero-shipping.jpg` overlay + glass blob accents. Three role callouts with colored gradient strips.
+- Sign-in / sign-up ([sign-in/page.tsx](src/app/[locale]/sign-in/page.tsx), [sign-up/page.tsx](src/app/[locale]/sign-up/page.tsx)) — split-screen (60/40), form on left, imagery + testimonial/benefits panel on right. Stacks on mobile (`lg:block`).
+- Providers directory — each tab gets a tinted hero strip (brand-blue / amber / emerald), `hero-{forwarders|coworkers|customs}.jpg` overlays.
+- [IMAGERY.md](IMAGERY.md) lists exact Unsplash URLs + filenames for the 4 photos the user copies into `public/img/`. SVG empty-state illustrations ship with the repo.
+- All page-sections degrade gracefully when image files are absent (background gradient remains).
+
+**Customer dashboard refresh** ([customer/page.tsx](src/app/[locale]/(authed)/customer/page.tsx)) — primary-CTA new-shipment card with brand-50 background and `+` icon, three stat cards with hover state. Pattern reusable for the other 4 dashboards.
+
+**Translations** — `Header`, `Avatar`, `EmptyState` namespaces added EN + AR.
+
+**Mobile sweep** — admin tables already have `overflow-x-auto`; Header / providers layout / hero sections all tested with `<lg` and `<sm` breakpoints. Drawer body-scroll-lock + escape key + outside-click close.
+
+**.env** — `NEXT_PUBLIC_BRAND_NAME="GoShip"` added.
+
+**Open items the user owns** (documented in IMAGERY.md):
+- Optionally drop `logo.png` / `logo-mark.png` into `public/brand/` to override the SVG fallback.
+- Optionally download the 4 Unsplash hero photos into `public/img/`.
+
 ---
 
 ## Schema overview (Prisma)

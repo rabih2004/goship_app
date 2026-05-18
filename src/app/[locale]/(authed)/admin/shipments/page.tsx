@@ -109,7 +109,7 @@ export default async function AdminShipmentsPage({
             <tr>
               <th className="px-4 py-2 text-start">{t("route")}</th>
               <th className="px-4 py-2 text-start">{t("customer")}</th>
-              <th className="px-4 py-2 text-start">{tS("container")}</th>
+              <th className="px-4 py-2 text-start">{tS("containerShort")}</th>
               <th className="px-4 py-2 text-start">{t("quotes")}</th>
               <th className="px-4 py-2 text-start">{tS("status")}</th>
               <th className="px-4 py-2 text-start">{t("created")}</th>

@@ -9,6 +9,38 @@
     "signOut": "Sign out",
     "dashboard": "Dashboard"
   },
+  "Header": {
+    "dashboard": "Dashboard",
+    "navShipments": "Shipments",
+    "navBookings": "Bookings",
+    "navRfqs": "RFQs",
+    "navLanes": "Lanes",
+    "navUsers": "Users",
+    "navDisputes": "Disputes",
+    "navPorts": "Ports",
+    "profile": "Profile",
+    "settings": "Settings",
+    "notifications": "Notifications",
+    "signOut": "Sign out",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "language": "Language"
+  },
+  "Avatar": {
+    "upload": "Upload photo",
+    "replace": "Change photo",
+    "uploading": "Uploading…",
+    "hint": "JPG, PNG or WebP — max 2 MB.",
+    "errTooLarge": "File is too large (max 2 MB).",
+    "errBadType": "Only JPG, PNG, or WebP files are allowed.",
+    "errMissing": "Please choose a file to upload.",
+    "errUnknown": "Upload failed. Please try again."
+  },
+  "EmptyState": {
+    "rfqEmpty": "No RFQs yet.",
+    "bookingsEmpty": "No bookings yet.",
+    "lanesEmpty": "No lanes yet."
+  },
   "Landing": {
     "hero": "Compare sea-freight quotes from vetted forwarders.",
     "subhero": "Post a shipment, receive bids from licensed freight forwarders, book and pay securely, and track your container to delivery.",
@@ -22,7 +54,15 @@
     "step2Body": "Forwarders bid with price, transit time, and carrier.",
     "step3Title": "Book and track",
     "step3Body": "Pay securely via Stripe. Track each stage of your shipment.",
-    "browseProviders": "Or browse our forwarders, pickup coworkers, and customs agents →"
+    "browseProviders": "Or browse our forwarders, pickup coworkers, and customs agents →",
+    "heroBadge": "Sea freight · made simple",
+    "roleCalloutsTitle": "Built for every link in the chain",
+    "roleCalloutsSubtitle": "Join as the role that fits — or browse providers first.",
+    "ctaForwarderBody": "Fill empty TEU slots on the lanes you serve.",
+    "ctaCoworkerBody": "Pickup jobs near you, paid per trip.",
+    "ctaCustomsAgent": "I am a customs broker",
+    "ctaCustomsBody": "Clearance work at destination ports in your country.",
+    "getStarted": "Get started"
   },
   "Providers": {
     "tabForwarders": "Forwarders",

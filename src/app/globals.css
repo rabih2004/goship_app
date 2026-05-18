@@ -3,15 +3,70 @@
 :root {
   --background: #ffffff;
   --foreground: #18181b;
-  --brand: #0f766e;
+
+  /* Brand scale — anchored on #225cff (brand-600). Perceptually uniform. */
+  --brand-50:  #eef3ff;
+  --brand-100: #dce7ff;
+  --brand-200: #bcd0ff;
+  --brand-300: #8db0ff;
+  --brand-400: #5887ff;
+  --brand-500: #2f6dff;
+  --brand-600: #225cff;
+  --brand-700: #1c4be0;
+  --brand-800: #1b3fb5;
+  --brand-900: #1c388f;
+  --brand-950: #14225a;
+
+  /* Brand primary alias — keeps the 116 existing var(--brand) callsites working. */
+  --brand:    var(--brand-600);
   --brand-fg: #ffffff;
+
+  /* Semantic tokens. */
+  --success: #10b981;
+  --warn:    #f59e0b;
+  --danger:  #dc2626;
+  --info:    var(--brand-500);
+
+  /* Surface tokens. */
+  --surface:       #ffffff;
+  --surface-muted: #f4f5f7;
+  --border:        #e4e4e7;
+
+  /* Role accent colors — used in Avatar ring + dashboard chip. */
+  --role-customer:  #71717a;
+  --role-forwarder: var(--brand-600);
+  --role-coworker:  #f59e0b;
+  --role-customs:   #10b981;
+  --role-admin:     #8b5cf6;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-brand: var(--brand);
-  --color-brand-fg: var(--brand-fg);
+
+  --color-brand:     var(--brand);
+  --color-brand-fg:  var(--brand-fg);
+  --color-brand-50:  var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+
+  --color-success: var(--success);
+  --color-warn:    var(--warn);
+  --color-danger:  var(--danger);
+  --color-info:    var(--info);
+
+  --color-surface:       var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border:        var(--border);
+
   --font-sans: var(--font-sans-latin), var(--font-sans-arabic), system-ui, sans-serif;
 }
 

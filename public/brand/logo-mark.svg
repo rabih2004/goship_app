@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="#225cff"/>
+  <!-- Container ship silhouette -->
+  <path d="M10 38 L54 38 L50 46 L14 46 Z" fill="#ffffff"/>
+  <!-- Stacked containers -->
+  <rect x="16" y="24" width="8" height="10" fill="#ffffff"/>
+  <rect x="26" y="24" width="8" height="10" fill="#ffffff" opacity="0.85"/>
+  <rect x="36" y="24" width="8" height="10" fill="#ffffff" opacity="0.7"/>
+  <rect x="20" y="14" width="8" height="8" fill="#ffffff" opacity="0.85"/>
+  <rect x="30" y="14" width="8" height="8" fill="#ffffff" opacity="0.7"/>
+  <!-- Water ripple -->
+  <path d="M8 52 Q14 50 20 52 T32 52 T44 52 T56 52" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+</svg>

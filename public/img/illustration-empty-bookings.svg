@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 140" fill="none">
+  <!-- horizon -->
+  <line x1="0" y1="100" x2="200" y2="100" stroke="#dce7ff" stroke-width="2"/>
+  <!-- ship -->
+  <path d="M50 100 L150 100 L140 116 L60 116 Z" fill="#225cff"/>
+  <rect x="76" y="74" width="14" height="22" fill="#225cff" opacity="0.9"/>
+  <rect x="92" y="74" width="14" height="22" fill="#225cff" opacity="0.75"/>
+  <rect x="108" y="74" width="14" height="22" fill="#225cff" opacity="0.6"/>
+  <!-- waves -->
+  <path d="M20 122 Q40 118 60 122 T100 122 T140 122 T180 122" stroke="#225cff" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.4"/>
+  <!-- sun -->
+  <circle cx="160" cy="40" r="14" fill="#5887ff" opacity="0.7"/>
+</svg>

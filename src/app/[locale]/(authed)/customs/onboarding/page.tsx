@@ -33,8 +33,14 @@ export default async function CustomsOnboardingPage({
   const returnedFromProvider = sp.return === "1";
   const mockMode = isMock();
 
-  const profile = await db.customsAgentProfile.findUnique({
+  const profile = await db.customsAgentProfile.upsert({
     where: { userId: user.id },
+    update: {},
+    create: {
+      userId: user.id,
+      displayName: user.email.split("@")[0],
+      countryCode: "US",
+    },
     select: {
       stripeAccountId: true,
       onboardingComplete: true,
@@ -42,7 +48,6 @@ export default async function CustomsOnboardingPage({
       countryCode: true,
     },
   });
-  if (!profile) notFound();
 
   const stage = mockMode
     ? profile.onboardingComplete

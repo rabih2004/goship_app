@@ -34,8 +34,15 @@ export default async function CoworkerOnboardingPage({
   const returnedFromProvider = sp.return === "1";
   const mockMode = isMock();
 
-  const profile = await db.coworkerProfile.findUnique({
+  const profile = await db.coworkerProfile.upsert({
     where: { userId: user.id },
+    update: {},
+    create: {
+      userId: user.id,
+      displayName: user.email.split("@")[0],
+      countryCode: "US",
+      cityArea: "",
+    },
     select: {
       stripeAccountId: true,
       onboardingComplete: true,
@@ -43,7 +50,6 @@ export default async function CoworkerOnboardingPage({
       countryCode: true,
     },
   });
-  if (!profile) notFound();
 
   const stage = mockMode
     ? profile.onboardingComplete

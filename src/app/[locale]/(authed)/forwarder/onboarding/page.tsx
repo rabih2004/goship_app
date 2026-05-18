@@ -34,8 +34,14 @@ export default async function OnboardingPage({
   const returnedFromProvider = sp.return === "1";
   const mockMode = isMock();
 
-  const profile = await db.forwarderProfile.findUnique({
+  const profile = await db.forwarderProfile.upsert({
     where: { userId: user.id },
+    update: {},
+    create: {
+      userId: user.id,
+      companyName: user.email.split("@")[0],
+      countryCode: "US",
+    },
     select: {
       stripeAccountId: true,
       onboardingComplete: true,
@@ -43,7 +49,6 @@ export default async function OnboardingPage({
       countryCode: true,
     },
   });
-  if (!profile) notFound();
 
   // In mock mode the only signal is `onboardingComplete`; we don't track an
   // intermediate "in-progress" stage since there's nothing to be in-progress on.

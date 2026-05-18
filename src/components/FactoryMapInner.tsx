@@ -35,7 +35,7 @@ const FACTORY_ICON = L.divIcon({
 
 const PORT_ICON = L.divIcon({
   className: "",
-  html: '<div style="width:26px;height:26px;border-radius:9999px;background:#0f766e;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
+  html: '<div style="width:26px;height:26px;border-radius:9999px;background:#225cff;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
   iconSize: [26, 26],
   iconAnchor: [13, 13],
 });
@@ -282,7 +282,7 @@ export function FactoryMapInner({
           {routePositions.length > 0 && (
             <Polyline
               positions={routePositions}
-              pathOptions={{ color: "#0f766e", weight: 4, opacity: 0.85 }}
+              pathOptions={{ color: "#225cff", weight: 4, opacity: 0.85 }}
             />
           )}
         </MapContainer>

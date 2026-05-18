@@ -7,6 +7,12 @@ import { requireRole } from "@/lib/guards";
 import { db } from "@/lib/db";
 import { Link } from "@/i18n/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
+import { SUPPORTED_CURRENCIES } from "@/lib/fx";
+
+import { AvatarUpload } from "@/components/AvatarUpload";
+import { AccountForm } from "@/components/AccountForm";
+import { Card, CardHeader } from "@/components/ui/Card";
+import { avatarUrl } from "@/lib/avatars";
 
 import { ProfileForm } from "./ProfileForm";
 
@@ -22,19 +28,28 @@ export default async function CustomsProfilePage({
 
   const user = await requireRole("CUSTOMS_AGENT", locale);
 
-  const profile = await db.customsAgentProfile.findUnique({
-    where: { userId: user.id },
-    select: {
-      displayName: true,
-      countryCode: true,
-      operationCities: true,
-      licenseNumber: true,
-      baseFeeUSDCents: true,
-      docSetFeeUSDCents: true,
-      onboardingComplete: true,
-    },
-  });
+  const [profile, account] = await Promise.all([
+    db.customsAgentProfile.findUnique({
+      where: { userId: user.id },
+      select: {
+        displayName: true,
+        countryCode: true,
+        operationCities: true,
+        licenseNumber: true,
+        baseFeeUSDCents: true,
+        docSetFeeUSDCents: true,
+        logoUrl: true,
+        onboardingComplete: true,
+      },
+    }),
+    db.user.findUnique({
+      where: { id: user.id },
+      select: { name: true, email: true, phone: true, preferredCurrency: true },
+    }),
+  ]);
   if (!profile) redirect(`/${locale}/customs/onboarding`);
+
+  const resolvedLogo = await avatarUrl(profile.logoUrl ?? null);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-6 py-12">
@@ -52,12 +67,33 @@ export default async function CustomsProfilePage({
         )}
       </div>
 
-      <h1 className="mb-1 text-2xl font-semibold text-zinc-900">Edit profile</h1>
+      <h1 className="mb-1 text-2xl font-semibold text-zinc-900">Profile & settings</h1>
       <p className="mb-8 text-sm text-zinc-500">
-        Update your identity, coverage area, and pricing. Changes apply immediately to new clearance RFQs.
+        Manage your firm details, personal info, password, and display preferences.
       </p>
 
-      <ProfileForm locale={locale} profile={profile} />
+      <Card className="mb-6">
+        <CardHeader title="Firm logo" subtitle="Shown to customers on quote-comparison cards and your public profile." />
+        <AvatarUpload
+          name={profile.displayName}
+          currentImage={resolvedLogo}
+          role="CUSTOMS_AGENT"
+          locale={locale}
+        />
+      </Card>
+
+      <Card className="mb-6">
+        <ProfileForm locale={locale} profile={profile} />
+      </Card>
+
+      <AccountForm
+        name={account?.name ?? ""}
+        email={account?.email ?? user.email}
+        phone={account?.phone}
+        preferredCurrency={account?.preferredCurrency ?? "USD"}
+        currencies={SUPPORTED_CURRENCIES}
+        locale={locale}
+      />
     </div>
   );
 }

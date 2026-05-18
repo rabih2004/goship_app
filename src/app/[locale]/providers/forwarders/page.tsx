@@ -62,9 +62,13 @@ export default async function ForwardersDirectoryPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-12">
-      <h1 className="mb-2 text-2xl font-semibold text-zinc-900">{t("forwardersTitle")}</h1>
-      <p className="mb-6 text-sm text-zinc-600">{t("forwardersIntro")}</p>
+    <>
+      <DirectoryHero
+        image="/img/hero-forwarders.jpg"
+        title={t("forwardersTitle")}
+        intro={t("forwardersIntro")}
+      />
+      <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
 
       <form className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-white p-4">
         <div className="flex-1 min-w-[160px]">
@@ -139,6 +143,31 @@ export default async function ForwardersDirectoryPage({
           ))}
         </ul>
       )}
-    </div>
+      </div>
+    </>
+  );
+}
+
+function DirectoryHero({
+  image,
+  title,
+  intro,
+}: {
+  image: string;
+  title: string;
+  intro: string;
+}) {
+  return (
+    <section className="relative overflow-hidden bg-gradient-to-br from-brand-900 via-brand-700 to-brand-600 text-white">
+      <div
+        className="absolute inset-0 bg-cover bg-center opacity-30"
+        style={{ backgroundImage: `url("${image}")` }}
+        aria-hidden
+      />
+      <div className="relative mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+        <p className="mt-2 max-w-2xl text-sm text-white/85 sm:text-base">{intro}</p>
+      </div>
+    </section>
   );
 }

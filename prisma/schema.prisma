@@ -27,6 +27,7 @@ model User {
   // Display currency for money on user-facing pages. Settlement stays in USD
   // (Stripe / Connect). ISO 4217, validated against the FxRate table.
   preferredCurrency String @default("USD")       @db.VarChar(3)
+  phone         String?                          @db.VarChar(30)
   suspended     Boolean   @default(false)
   image         String?                          @db.VarChar(500)
   createdAt     DateTime  @default(now())
@@ -106,6 +107,7 @@ model ForwarderProfile {
   companyName        String                                    @db.VarChar(120)
   registrationNumber String?                                   @db.VarChar(80)
   countryCode        String                                    @db.VarChar(2)
+  logoUrl            String?                                   @db.VarChar(500)
   stripeAccountId    String?  @unique                          @db.VarChar(80)
   onboardingComplete Boolean  @default(false)
   ratingAvg          Float    @default(0)
@@ -125,6 +127,7 @@ model CustomsAgentProfile {
   countryCode        String                              @db.VarChar(2)   // operating country (matches destinationPort.country)
   operationCities    String?                             @db.Text          // optional comma-separated list of city names
   licenseNumber      String?                             @db.VarChar(80)   // broker license, if any
+  logoUrl            String?                             @db.VarChar(500)
   baseFeeUSDCents    Int      @default(15000)                              // $150 default base
   docSetFeeUSDCents  Int      @default(5000)                               // $50 per document set
   stripeAccountId    String?  @unique                   @db.VarChar(80)
@@ -152,6 +155,7 @@ model CoworkerProfile {
   baseFeeUSDCents         Int      @default(2000)                                // $20.00 minimum
   vehicleType             String   @default("Van")            @db.VarChar(40)    // Van | Truck-20ft | Truck-40ft | Flatbed
   vehicleCapacityKg       Int      @default(1000)
+  logoUrl                 String?                              @db.VarChar(500)
   stripeAccountId         String?  @unique                   @db.VarChar(80)
   onboardingComplete      Boolean  @default(false)
   ratingAvg               Float    @default(0)
